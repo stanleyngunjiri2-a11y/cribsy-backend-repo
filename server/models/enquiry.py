@@ -18,7 +18,6 @@ class Enquiry(db.Model):
     message = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
-    
     property = db.relationship(
         "Property",
         backref=db.backref("enquiries", cascade="all, delete-orphan"),
