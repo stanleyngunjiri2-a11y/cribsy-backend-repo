@@ -34,3 +34,27 @@ class Property(db.Model):
     availability = db.Column(db.String(20), nullable=False, default="vacant")
     approval_status = db.Column(db.String(20), nullable=False, default="pending")
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+     landlord = db.relationship("User", backref="properties")
+    amenities = db.relationship("Amenity", secondary=property_amenities, back_populates="properties")
+
+    def to_dict(self, include_landlord=False):
+        data = {
+            "id": self.id,
+            "landlord_id": self.landlord_id,
+            "name": self.name,
+            "location": self.location,
+            "property_type": self.property_type,
+            "monthly_rent": self.monthly_rent,
+            "bedrooms": self.bedrooms,
+            "bathrooms": self.bathrooms,
+            "description": self.description,
+            "image_url": self.image_url,
+            "availability": self.availability,
+            "approval_status": self.approval_status,
+            "amenities": sorted(a.name for a in self.amenities),
+            "created_at": iso(self.created_at),
+        }
+        if include_landlord:
+            data["landlord"] = {"id": self.landlord.id, "full_name": self.landlord.full_name}
+        return data
+
