@@ -33,3 +33,38 @@ def list_properties():
     if bedrooms:
         # "4" means "4 or more", matching the frontend filter
         query = query.filter(Property.bedrooms >= 4 if bedrooms >= 4 else Property.bedrooms == bedrooms)
+        availability = args.get("availability")
+    if availability == "available":
+        query = query.filter(Property.availability == "vacant")
+    elif availability == "unavailable":
+        query = query.filter(Property.availability == "occupied")
+
+    page = max(args.get("page", 1, type=int), 1)
+    per_page = min(max(args.get("per_page", 6, type=int), 1), 24)
+    result = query.order_by(Property.id).paginate(page=page, per_page=per_page, error_out=False)
+
+    return jsonify({
+        "items": [p.to_dict() for p in result.items],
+        "page": result.page,
+        "per_page": per_page,
+        "total": result.total,
+        "pages": result.pages or 1,
+    })
+
+
+@bp.get("/properties/<int:property_id>")
+def property_detail(property_id):
+    prop = db.get_or_404(Property, property_id)
+
+    if prop.approval_status != "approved":
+        # Not public yet: only the owner or an admin may look at it.
+        verify_jwt_in_request(optional=True)
+        identity = get_jwt_identity()
+        user = db.session.get(User, int(identity)) if identity else None
+        if user is None or (user.role != "admin" and prop.landlord_id != user.id):
+            abort(404)
+
+    return jsonify(prop.to_dict(include_landlord=True))
+
+
+
