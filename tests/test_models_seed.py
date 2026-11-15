@@ -1,40 +1,16 @@
-import importlib
-import sys
-import types
 from datetime import date, datetime
 
 import pytest
-from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
 
-
-# The repository currently has no app factory or extensions module.
-db = SQLAlchemy()
-extensions = types.ModuleType("app.extensions")
-extensions.db = db
-sys.modules["app.extensions"] = extensions
-
-app_package = importlib.import_module("app")
-models = importlib.import_module("app.models")
-
-test_app = Flask(__name__)
-test_app.config.update(
-    SQLALCHEMY_DATABASE_URI="sqlite://",
-    SQLALCHEMY_TRACK_MODIFICATIONS=False,
-)
-db.init_app(test_app)
-app_package.create_app = lambda: test_app
-seed = importlib.import_module("seed")
+from app import models
+from app.extensions import db
+import seed
 
 
 @pytest.fixture(autouse=True)
-def database():
-    with test_app.app_context():
-        db.drop_all()
-        db.create_all()
+def database(app):
+    with app.app_context():
         yield
-        db.session.remove()
-        db.drop_all()
 
 
 def make_user(**overrides):
@@ -265,8 +241,8 @@ def test_maintenance_request_photo_serialization_and_cascades():
     assert models.Enquiry.query.count() == 1
 
 
-def test_seed_populates_sample_data_and_is_idempotent(capsys):
-    seed.seed()
+def test_seed_populates_sample_data_and_is_idempotent(app, capsys):
+    seed.seed(app)
     assert "Sample data added." in capsys.readouterr().out
     assert models.User.query.count() == 5
     assert models.Property.query.count() == 10
@@ -287,7 +263,7 @@ def test_seed_populates_sample_data_and_is_idempotent(capsys):
         seed.PASSWORDS["admin"]
     )
 
-    seed.seed()
+    seed.seed(app)
     assert "already has users" in capsys.readouterr().out
     assert models.User.query.count() == 5
     assert models.Property.query.count() == 10

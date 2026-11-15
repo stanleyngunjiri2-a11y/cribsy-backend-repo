@@ -1,9 +1,37 @@
+"""Central exports for all RentConnect database models."""
 
-import importlib
-import pkgutil
+from ..model_registry import (
+    ACTIVE_TENANCY,
+    APPROVALS,
+    AVAILABILITY,
+    MAINTENANCE_CATEGORIES,
+    MAINTENANCE_STATUSES,
+    PAYMENT_METHODS,
+    PAYMENT_STATUSES,
+    PROPERTY_TYPES,
+    ROLES,
+    TENANCY_STATUSES,
+    USER_STATUSES,
+    Amenity,
+    Enquiry,
+    MaintenancePhoto,
+    MaintenanceRequest,
+    Property,
+    RentPayment,
+    Tenancy,
+    User,
+    VerificationCode,
+    iso,
+    property_amenities,
+    utcnow,
+)
 
-for _info in pkgutil.iter_modules(__path__):
-    _module = importlib.import_module(f"{__name__}.{_info.name}")
-    for _name, _value in vars(_module).items():
-        if not _name.startswith("_"):
-            globals()[_name] = _value
+__all__ = [
+    "ACTIVE_TENANCY", "APPROVALS", "AVAILABILITY",
+    "MAINTENANCE_CATEGORIES", "MAINTENANCE_STATUSES",
+    "PAYMENT_METHODS", "PAYMENT_STATUSES", "PROPERTY_TYPES",
+    "ROLES", "TENANCY_STATUSES", "USER_STATUSES",
+    "Amenity", "Enquiry", "MaintenancePhoto", "MaintenanceRequest",
+    "Property", "RentPayment", "Tenancy", "User", "VerificationCode",
+    "iso", "property_amenities", "utcnow",
+]

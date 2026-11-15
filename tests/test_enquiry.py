@@ -1,38 +1,35 @@
 from datetime import datetime, timezone
 
-import pytest
-from flask import Flask
-
-from server.extension import db
-from server.models.enquiry import Enquiry, utcnow
+from app.extensions import db
+from app.models import Enquiry, Property, User, utcnow
 
 
-class Property(db.Model):
-    __tablename__ = "properties"
-
-    id = db.Column(db.Integer, primary_key=True)
-
-
-@pytest.fixture
-def app():
-    app = Flask(__name__)
-    app.config.update(
-        SQLALCHEMY_DATABASE_URI="sqlite://",
-        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+def create_property():
+    landlord = User(
+        full_name="Test Landlord",
+        email="landlord@example.com",
+        phone="0712345678",
+        password_hash="test-hash",
+        role="landlord",
     )
-    db.init_app(app)
+    property_record = Property(
+        landlord=landlord,
+        name="Test Apartment",
+        location="Nairobi",
+        property_type="Apartment",
+        monthly_rent=25000,
+        bedrooms=2,
+        bathrooms=1,
+        description="Test property",
+    )
+    return property_record
 
-    with app.app_context():
-        db.create_all()
-        yield app
-        db.session.remove()
-        db.drop_all()
 
-
-def test_utcnow_returns_utc_datetime():
+def test_utcnow_returns_naive_utc_datetime():
     result = utcnow()
 
-    assert result.tzinfo is timezone.utc
+    assert isinstance(result, datetime)
+    assert result.tzinfo is None
 
 
 def test_to_dict_serializes_enquiry_fields_and_timestamp():
@@ -69,7 +66,7 @@ def test_to_dict_returns_none_for_missing_timestamp():
 
 def test_created_at_uses_default_when_record_is_saved(app):
     with app.app_context():
-        property_record = Property()
+        property_record = create_property()
         enquiry = Enquiry(
             property=property_record,
             name="Avery",
