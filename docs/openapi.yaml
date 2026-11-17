@@ -1,0 +1,1989 @@
+# RentConnect API description (OpenAPI 3). Shown as Swagger UI at /api/docs.
+# When you add or change an endpoint, update this file too. tests/test_docs.py fails if they drift apart.
+openapi: 3.0.3
+info:
+  title: RentConnect API
+  version: 1.0.0
+  description: |-
+    REST API for RentConnect: landlords list and manage properties, tenants pay rent and report maintenance issues, and admins approve listings.
+
+    **How to try the protected endpoints**
+    1. Call `POST /api/auth/login` with an email and password. A 6-digit code is emailed (in development it is also returned as `dev_code`).
+    2. Call `POST /api/auth/verify` with the email and the code. Copy the `access_token` from the answer.
+    3. Press **Authorize** at the top right, paste the token, and press Authorize. Protected endpoints now work.
+
+    **Errors** always look like `{"error": "message"}`. Validation errors also include `fields`, for example `{"error": "Please fix the highlighted fields.", "fields": {"email": "Enter a valid email address."}}`.
+
+    **Values** such as statuses are lowercase with underscores (`in_progress`, `vacant`). Money is in whole Kenyan shillings. Dates use `YYYY-MM-DD`.
+servers:
+  - url: http://localhost:5555
+    description: Local development (change the port if you run on a different one)
+tags:
+  - name: Auth
+    description: Register, two-step sign-in, password reset and profile.
+  - name: Uploads
+    description: Image upload to Cloudinary.
+  - name: Public
+    description: Property search and details, enquiries and dropdown values. No sign-in needed.
+  - name: Landlord
+    description: Dashboard, own properties, tenants, tenancies and rent payments.
+  - name: Tenant
+    description: The tenant's home, dashboard and rent history.
+  - name: Maintenance
+    description: Maintenance requests from both sides.
+  - name: Admin
+    description: Users and property approval.
+paths:
+  /api/auth/register:
+    post:
+      tags:
+        - Auth
+      operationId: register
+      summary: Create an account
+      description: Admins are never created here. Choose `tenant` or `landlord`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+            example:
+              full_name: Jane Wanjiku
+              email: jane@example.com
+              phone: 0712345678
+              role: tenant
+              password: Passw0rd1
+      responses:
+        "201":
+          description: Account created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "409":
+          description: That email is already registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+  /api/auth/login:
+    post:
+      tags:
+        - Auth
+      operationId: login
+      summary: "Sign in, step 1: check the password"
+      description:
+        Checks the email and password and emails a 6-digit code (valid for 10 minutes). While `SHOW_DEV_CODES=true`
+        the code is also returned as `dev_code`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+            example:
+              email: jane@example.com
+              password: Passw0rd1
+      responses:
+        "200":
+          description: A verification code was sent.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Incorrect email or password.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The account is suspended.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/auth/verify:
+    post:
+      tags:
+        - Auth
+      operationId: verifyCode
+      summary: "Sign in, step 2: exchange the code for a token"
+      description:
+        Copy `access_token` and press **Authorize** at the top of this page to try protected endpoints.
+        A code works only once.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyInput"
+            example:
+              email: jane@example.com
+              code: "123456"
+      responses:
+        "200":
+          description: Signed in.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "400":
+          description: The code is incorrect or has expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/auth/forgot-password:
+    post:
+      tags:
+        - Auth
+      operationId: forgotPassword
+      summary: Ask for a password reset link
+      description:
+        Always answers the same way, whether or not the email exists. While `SHOW_DEV_CODES=true` the
+        link is also returned as `dev_reset_link`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordInput"
+            example:
+              email: jane@example.com
+      responses:
+        "200":
+          description: Request accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForgotPasswordResponse"
+  /api/auth/reset-password:
+    post:
+      tags:
+        - Auth
+      operationId: resetPassword
+      summary: Set a new password with the emailed token
+      description: The token is valid for 1 hour and stops working once used.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordInput"
+            example:
+              token: token-from-the-email-link
+              password: NewPass123
+      responses:
+        "200":
+          description: Password changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+  /api/auth/me:
+    get:
+      tags:
+        - Auth
+      operationId: getMe
+      summary: Get my profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The signed-in user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    patch:
+      tags:
+        - Auth
+      operationId: updateMe
+      summary: Edit my profile and notification setting
+      description: Send only the fields you want to change.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+            example:
+              full_name: Jane W.
+              email_notifications: false
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Profile updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /api/uploads/image:
+    post:
+      tags:
+        - Uploads
+      operationId: uploadImage
+      summary: Upload one image to Cloudinary
+      description: |-
+        **Who can call it:** landlord, tenant.
+
+        Send the file as `multipart/form-data` in a field called `file` (JPG, PNG or WebP, at most 2 MB). Save the returned `url` as `image_url` (property) or in `photo_urls` (maintenance request). Landlords' images go to the `properties` folder and tenants' to `maintenance`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Uploaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResult"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "413":
+          description: The file is too large.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Cloudinary or the network failed. Try again.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Cloudinary keys are not set on this server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/health:
+    get:
+      tags:
+        - Public
+      operationId: health
+      summary: Is the server running?
+      responses:
+        "200":
+          description: Running.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+  /api/meta:
+    get:
+      tags:
+        - Public
+      operationId: getMeta
+      summary: Dropdown values for the frontend
+      description:
+        Property types, maintenance categories and statuses, payment methods and amenities, so the frontend
+        does not hard-code them.
+      responses:
+        "200":
+          description: The values.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Meta"
+  /api/properties:
+    get:
+      tags:
+        - Public
+      operationId: searchProperties
+      summary: Search properties
+      description: Only **approved** properties are listed. All filters are optional and can be combined.
+      parameters:
+        - name: location
+          in: query
+          required: false
+          description: Part of the location. Ignores capital letters.
+          schema:
+            type: string
+          example: ruiru
+        - name: min_rent
+          in: query
+          required: false
+          description: Lowest monthly rent in KSh.
+          schema:
+            type: integer
+        - name: max_rent
+          in: query
+          required: false
+          description: Highest monthly rent in KSh.
+          schema:
+            type: integer
+        - name: type
+          in: query
+          required: false
+          description: Property type.
+          schema:
+            type: string
+            enum:
+              - Apartment
+              - House
+              - Bedsitter
+              - Studio
+        - name: bedrooms
+          in: query
+          required: false
+          description: Exact number of bedrooms. `4` means 4 or more.
+          schema:
+            type: integer
+            minimum: 1
+        - name: availability
+          in: query
+          required: false
+          description: "`available` = vacant, `unavailable` = occupied."
+          schema:
+            type: string
+            enum:
+              - available
+              - unavailable
+        - name: page
+          in: query
+          required: false
+          description: Page number.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          description: Results per page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 24
+            default: 6
+      responses:
+        "200":
+          description: One page of results.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PropertyPage"
+  /api/properties/{property_id}:
+    get:
+      tags:
+        - Public
+      operationId: getProperty
+      summary: Property details
+      description:
+        Anyone can open an approved property. A property that is not approved is visible only to its
+        landlord and to admins (send a token); everyone else gets 404.
+      parameters:
+        - $ref: "#/components/parameters/PropertyId"
+      responses:
+        "200":
+          description: The property.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PropertyDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/properties/{property_id}/enquiries:
+    post:
+      tags:
+        - Public
+      operationId: createEnquiry
+      summary: Send an enquiry about a property
+      description: The landlord is notified by email (if they have notifications on).
+      parameters:
+        - $ref: "#/components/parameters/PropertyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnquiryInput"
+            example:
+              name: Sam Mwangi
+              email: sam@example.com
+              message: Is this property still available?
+      responses:
+        "201":
+          description: Enquiry saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Enquiry"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/landlord/dashboard:
+    get:
+      tags:
+        - Landlord
+      operationId: landlordDashboard
+      summary: Dashboard numbers
+      description: "**Who can call it:** landlord."
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Totals and the 4 latest rent records.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LandlordDashboard"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/landlord/properties:
+    get:
+      tags:
+        - Landlord
+      operationId: listMyProperties
+      summary: My properties
+      description: "**Who can call it:** landlord."
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All properties owned by the landlord, any approval status.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Property"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags:
+        - Landlord
+      operationId: createProperty
+      summary: Add a property
+      description: |-
+        **Who can call it:** landlord.
+
+        New properties start as `pending` and become public once an admin approves them.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropertyInput"
+            example:
+              name: Greenview Unit A2
+              location: Ruiru, Kiambu
+              property_type: Apartment
+              monthly_rent: 28000
+              bedrooms: 2
+              bathrooms: 1
+              description: Two bedroom apartment with parking.
+              availability: vacant
+              image_url: https://res.cloudinary.com/your-cloud/image/upload/a.jpg
+              amenities:
+                - Parking
+                - Water supply
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Property created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/landlord/properties/{property_id}:
+    get:
+      tags:
+        - Landlord
+      operationId: getMyProperty
+      summary: One of my properties
+      description: "**Who can call it:** landlord."
+      parameters:
+        - $ref: "#/components/parameters/PropertyId"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The property.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      tags:
+        - Landlord
+      operationId: updateProperty
+      summary: Edit a property
+      description: |-
+        **Who can call it:** landlord.
+
+        Send every field, as when adding a property. Another landlord's property answers 404.
+      parameters:
+        - $ref: "#/components/parameters/PropertyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropertyInput"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Property updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    delete:
+      tags:
+        - Landlord
+      operationId: deleteProperty
+      summary: Delete a property
+      description: |-
+        **Who can call it:** landlord.
+
+        Not allowed once the property has any tenancy record.
+      parameters:
+        - $ref: "#/components/parameters/PropertyId"
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Deleted.
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The property has tenancy records.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/landlord/tenants:
+    get:
+      tags:
+        - Landlord
+      operationId: listTenants
+      summary: Tenants on my properties
+      description: "**Who can call it:** landlord."
+      parameters:
+        - name: include_ended
+          in: query
+          required: false
+          description: Add `true` to include past tenants as well.
+          schema:
+            type: string
+            enum:
+              - "true"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Tenancies, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tenancy"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/landlord/tenancies:
+    post:
+      tags:
+        - Landlord
+      operationId: createTenancy
+      summary: Assign a tenant to a vacant property
+      description: |-
+        **Who can call it:** landlord.
+
+        The tenant must already have an account. The property must be approved and vacant, and the tenant must not already have an active tenancy. The property becomes `occupied` and the tenant is notified.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenancyInput"
+            example:
+              tenant_email: jane@example.com
+              property_id: 1
+              start_date: "2026-11-01"
+              end_date: "2027-10-31"
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Tenancy created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenancy"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Property not approved or not vacant, or the tenant already has a tenancy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/landlord/tenancies/{tenancy_id}:
+    patch:
+      tags:
+        - Landlord
+      operationId: updateTenancy
+      summary: Change a tenancy
+      description: |-
+        **Who can call it:** landlord.
+
+        Setting `status` to `ended` makes the property vacant again.
+      parameters:
+        - $ref: "#/components/parameters/TenancyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenancyUpdate"
+            example:
+              status: ended
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Tenancy updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenancy"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/landlord/payments:
+    get:
+      tags:
+        - Landlord
+      operationId: listPayments
+      summary: Rent records for my properties
+      description: "**Who can call it:** landlord."
+      parameters:
+        - name: tenancy_id
+          in: query
+          required: false
+          description: Only the payments of this tenancy.
+          schema:
+            type: integer
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RentPayment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/landlord/tenancies/{tenancy_id}/payments:
+    post:
+      tags:
+        - Landlord
+      operationId: recordPayment
+      summary: Record a rent payment
+      description: |-
+        **Who can call it:** landlord.
+
+        `paid_on` defaults to today, `method` to `Mobile money`, `status` to `paid`. A reference is made automatically if you leave it out. The tenant is notified.
+      parameters:
+        - $ref: "#/components/parameters/TenancyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentInput"
+            example:
+              amount: 28000
+              paid_on: "2026-11-02"
+              method: Mobile money
+              status: paid
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Payment recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentPayment"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/landlord/payments/{payment_id}:
+    patch:
+      tags:
+        - Landlord
+      operationId: updatePayment
+      summary: Change a payment's status
+      description: "**Who can call it:** landlord."
+      parameters:
+        - $ref: "#/components/parameters/PaymentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentStatusUpdate"
+            example:
+              status: paid
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Payment updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentPayment"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/tenant/dashboard:
+    get:
+      tags:
+        - Tenant
+      operationId: tenantDashboard
+      summary: Dashboard
+      description: "**Who can call it:** tenant."
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current tenancy, latest 3 payments and latest 5 maintenance requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantDashboard"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/tenant/tenancy:
+    get:
+      tags:
+        - Tenant
+      operationId: myTenancy
+      summary: The property I rent
+      description: "**Who can call it:** tenant."
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "`tenancy` is `null` when the tenant has no active tenancy."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenancy:
+                    allOf:
+                      - $ref: "#/components/schemas/Tenancy"
+                    nullable: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/tenant/payments:
+    get:
+      tags:
+        - Tenant
+      operationId: myPayments
+      summary: My rent history
+      description: "**Who can call it:** tenant."
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RentPayment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/tenant/payments/{payment_id}:
+    get:
+      tags:
+        - Tenant
+      operationId: myPayment
+      summary: One payment
+      description: "**Who can call it:** tenant."
+      parameters:
+        - $ref: "#/components/parameters/PaymentId"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The payment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentPayment"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/tenant/maintenance:
+    post:
+      tags:
+        - Maintenance
+      operationId: createMaintenanceRequest
+      summary: Report an issue
+      description: |-
+        **Who can call it:** tenant.
+
+        Needs an active tenancy. `photo_urls` holds up to 4 links from `POST /api/uploads/image`. The landlord is notified.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MaintenanceInput"
+            example:
+              category: Plumbing
+              description: The kitchen tap has been leaking for three days.
+              photo_urls:
+                - https://res.cloudinary.com/your-cloud/image/upload/leak.jpg
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Request created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MaintenanceRequest"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    get:
+      tags:
+        - Maintenance
+      operationId: myMaintenanceRequests
+      summary: My maintenance requests
+      description: "**Who can call it:** tenant."
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MaintenanceRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/tenant/maintenance/{request_id}:
+    get:
+      tags:
+        - Maintenance
+      operationId: myMaintenanceRequest
+      summary: One of my requests
+      description: "**Who can call it:** tenant."
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MaintenanceRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/landlord/maintenance:
+    get:
+      tags:
+        - Maintenance
+      operationId: landlordMaintenanceRequests
+      summary: Requests from my tenants
+      description: "**Who can call it:** landlord."
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Only requests with this status.
+          schema:
+            type: string
+            enum:
+              - pending
+              - in_progress
+              - resolved
+              - rejected
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MaintenanceRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/landlord/maintenance/{request_id}:
+    get:
+      tags:
+        - Maintenance
+      operationId: landlordMaintenanceRequest
+      summary: One request
+      description: "**Who can call it:** landlord."
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MaintenanceRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    patch:
+      tags:
+        - Maintenance
+      operationId: updateMaintenanceStatus
+      summary: Update a request's status
+      description: |-
+        **Who can call it:** landlord.
+
+        Use `resolved` or `rejected` to close a request. The tenant is notified.
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MaintenanceStatusUpdate"
+            example:
+              status: resolved
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Request updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MaintenanceRequest"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/admin/stats:
+    get:
+      tags:
+        - Admin
+      operationId: adminStats
+      summary: Totals
+      description: "**Who can call it:** admin."
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Counts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/admin/users:
+    get:
+      tags:
+        - Admin
+      operationId: adminUsers
+      summary: List users
+      description: "**Who can call it:** admin."
+      parameters:
+        - name: role
+          in: query
+          required: false
+          description: Only this role.
+          schema:
+            type: string
+            enum:
+              - tenant
+              - landlord
+              - admin
+        - name: status
+          in: query
+          required: false
+          description: Only this status.
+          schema:
+            type: string
+            enum:
+              - active
+              - suspended
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Users.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/admin/users/{user_id}/status:
+    patch:
+      tags:
+        - Admin
+      operationId: setUserStatus
+      summary: Suspend or reactivate a user
+      description: |-
+        **Who can call it:** admin.
+
+        Admin accounts cannot be suspended. A suspended user is locked out immediately, even with a token that has not expired.
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserStatusUpdate"
+            example:
+              status: suspended
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/admin/properties:
+    get:
+      tags:
+        - Admin
+      operationId: adminProperties
+      summary: List all properties
+      description: "**Who can call it:** admin."
+      parameters:
+        - name: approval_status
+          in: query
+          required: false
+          description: Only this approval status.
+          schema:
+            type: string
+            enum:
+              - pending
+              - approved
+              - rejected
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Properties with their landlord.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PropertyDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/admin/properties/{property_id}/approval:
+    patch:
+      tags:
+        - Admin
+      operationId: setPropertyApproval
+      summary: Approve or reject a property
+      description: |-
+        **Who can call it:** admin.
+
+        Approved properties become public. The landlord is notified.
+      parameters:
+        - $ref: "#/components/parameters/PropertyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalUpdate"
+            example:
+              approval_status: approved
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Property updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PropertyDetail"
+        "400":
+          $ref: "#/components/responses/ValidationFailed"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Paste the `access_token` from `POST /api/auth/verify`.
+  parameters:
+    PropertyId:
+      name: property_id
+      in: path
+      required: true
+      description: Property id.
+      schema:
+        type: integer
+    TenancyId:
+      name: tenancy_id
+      in: path
+      required: true
+      description: Tenancy id.
+      schema:
+        type: integer
+    PaymentId:
+      name: payment_id
+      in: path
+      required: true
+      description: Rent payment id.
+      schema:
+        type: integer
+    RequestId:
+      name: request_id
+      in: path
+      required: true
+      description: Maintenance request id.
+      schema:
+        type: integer
+    UserId:
+      name: user_id
+      in: path
+      required: true
+      description: User id.
+      schema:
+        type: integer
+  responses:
+    ValidationFailed:
+      description: The input is invalid. `fields` says which values are wrong.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationError"
+    Unauthorized:
+      description: Not signed in, or the token is missing, invalid or expired.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Signed in, but the account is suspended or has the wrong role for this endpoint.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: It does not exist, or it belongs to someone else.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Something went wrong.
+      required:
+        - error
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Please fix the highlighted fields.
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            email: Enter a valid email address.
+      required:
+        - error
+    Message:
+      type: object
+      properties:
+        message:
+          type: string
+    RegisterInput:
+      type: object
+      properties:
+        full_name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        role:
+          type: string
+          enum:
+            - tenant
+            - landlord
+        password:
+          type: string
+          format: password
+          description: At least 8 characters, with letters and numbers.
+      required:
+        - full_name
+        - email
+        - phone
+        - role
+        - password
+    LoginInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+      required:
+        - email
+        - password
+    LoginResponse:
+      type: object
+      properties:
+        verification_required:
+          type: boolean
+          example: true
+        email:
+          type: string
+        message:
+          type: string
+        dev_code:
+          type: string
+          description: Only while SHOW_DEV_CODES=true (development).
+          example: "123456"
+    VerifyInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        code:
+          type: string
+          example: "123456"
+      required:
+        - email
+        - code
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: "Send as `Authorization: Bearer <token>`. Valid for 8 hours."
+        user:
+          $ref: "#/components/schemas/User"
+    ForgotPasswordInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+        - email
+    ForgotPasswordResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        dev_reset_link:
+          type: string
+          description: Only while SHOW_DEV_CODES=true (development).
+    ResetPasswordInput:
+      type: object
+      properties:
+        token:
+          type: string
+        password:
+          type: string
+          format: password
+      required:
+        - token
+        - password
+    ProfileUpdate:
+      type: object
+      properties:
+        full_name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        email_notifications:
+          type: boolean
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        full_name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        role:
+          type: string
+          enum:
+            - tenant
+            - landlord
+            - admin
+        status:
+          type: string
+          enum:
+            - active
+            - suspended
+        email_notifications:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+    UploadResult:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+        public_id:
+          type: string
+    Meta:
+      type: object
+      properties:
+        property_types:
+          type: array
+          items:
+            type: string
+        maintenance_categories:
+          type: array
+          items:
+            type: string
+        maintenance_statuses:
+          type: array
+          items:
+            type: string
+        payment_methods:
+          type: array
+          items:
+            type: string
+        amenities:
+          type: array
+          items:
+            type: string
+    Property:
+      type: object
+      properties:
+        id:
+          type: integer
+        landlord_id:
+          type: integer
+        name:
+          type: string
+        location:
+          type: string
+        property_type:
+          type: string
+          enum:
+            - Apartment
+            - House
+            - Bedsitter
+            - Studio
+        monthly_rent:
+          type: integer
+          description: Whole Kenyan shillings.
+        bedrooms:
+          type: integer
+        bathrooms:
+          type: integer
+        description:
+          type: string
+        image_url:
+          type: string
+          format: uri
+          nullable: true
+        availability:
+          type: string
+          enum:
+            - vacant
+            - occupied
+        approval_status:
+          type: string
+          enum:
+            - pending
+            - approved
+            - rejected
+        amenities:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+    PropertyDetail:
+      allOf:
+        - $ref: "#/components/schemas/Property"
+        - type: object
+          properties:
+            landlord:
+              type: object
+              properties:
+                id:
+                  type: integer
+                full_name:
+                  type: string
+    PropertyInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+        location:
+          type: string
+        property_type:
+          type: string
+          enum:
+            - Apartment
+            - House
+            - Bedsitter
+            - Studio
+        monthly_rent:
+          type: integer
+          minimum: 1
+        bedrooms:
+          type: integer
+          minimum: 0
+        bathrooms:
+          type: integer
+          minimum: 0
+        description:
+          type: string
+          minLength: 10
+        availability:
+          type: string
+          enum:
+            - vacant
+            - occupied
+          default: vacant
+        image_url:
+          type: string
+          format: uri
+          description: A link from `POST /api/uploads/image`.
+        amenities:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+        - location
+        - property_type
+        - monthly_rent
+        - bedrooms
+        - bathrooms
+        - description
+    PropertyPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Property"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        pages:
+          type: integer
+    Enquiry:
+      type: object
+      properties:
+        id:
+          type: integer
+        property_id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    EnquiryInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+        email:
+          type: string
+          format: email
+        message:
+          type: string
+          minLength: 10
+      required:
+        - name
+        - email
+        - message
+    Tenancy:
+      type: object
+      properties:
+        id:
+          type: integer
+        tenant:
+          type: object
+          properties:
+            id:
+              type: integer
+            full_name:
+              type: string
+            email:
+              type: string
+            phone:
+              type: string
+        property:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            location:
+              type: string
+            property_type:
+              type: string
+              enum:
+                - Apartment
+                - House
+                - Bedsitter
+                - Studio
+            bedrooms:
+              type: integer
+            bathrooms:
+              type: integer
+            image_url:
+              type: string
+              nullable: true
+            landlord_name:
+              type: string
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+            - active
+            - notice
+            - ended
+        monthly_rent:
+          type: integer
+    TenancyInput:
+      type: object
+      properties:
+        tenant_email:
+          type: string
+          format: email
+        property_id:
+          type: integer
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        monthly_rent:
+          type: integer
+          description: Optional. Defaults to the property's rent.
+      required:
+        - tenant_email
+        - property_id
+        - start_date
+        - end_date
+    TenancyUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - active
+            - notice
+            - ended
+        end_date:
+          type: string
+          format: date
+    RentPayment:
+      type: object
+      properties:
+        id:
+          type: integer
+        tenancy_id:
+          type: integer
+        tenant_name:
+          type: string
+        property_name:
+          type: string
+        amount:
+          type: integer
+        paid_on:
+          type: string
+          format: date
+        reference:
+          type: string
+        method:
+          type: string
+          enum:
+            - Mobile money
+            - Bank transfer
+            - Cash
+        status:
+          type: string
+          enum:
+            - paid
+            - pending
+            - overdue
+    PaymentInput:
+      type: object
+      properties:
+        amount:
+          type: integer
+          minimum: 1
+        paid_on:
+          type: string
+          format: date
+        method:
+          type: string
+          enum:
+            - Mobile money
+            - Bank transfer
+            - Cash
+        status:
+          type: string
+          enum:
+            - paid
+            - pending
+            - overdue
+        reference:
+          type: string
+          description: Optional. Must be unique.
+      required:
+        - amount
+    PaymentStatusUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - paid
+            - pending
+            - overdue
+      required:
+        - status
+    MaintenanceRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        tenancy_id:
+          type: integer
+        tenant_name:
+          type: string
+        property_name:
+          type: string
+        category:
+          type: string
+          enum:
+            - Plumbing
+            - Electrical
+            - Appliances
+            - Doors and locks
+            - Pests
+            - Structural
+            - Other
+        description:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - in_progress
+            - resolved
+            - rejected
+        photos:
+          type: array
+          items:
+            type: string
+            format: uri
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    MaintenanceInput:
+      type: object
+      properties:
+        category:
+          type: string
+          enum:
+            - Plumbing
+            - Electrical
+            - Appliances
+            - Doors and locks
+            - Pests
+            - Structural
+            - Other
+        description:
+          type: string
+          minLength: 15
+        photo_urls:
+          type: array
+          maxItems: 4
+          items:
+            type: string
+            format: uri
+      required:
+        - category
+        - description
+    MaintenanceStatusUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - pending
+            - in_progress
+            - resolved
+            - rejected
+      required:
+        - status
+    LandlordDashboard:
+      type: object
+      properties:
+        total_properties:
+          type: integer
+        occupied_properties:
+          type: integer
+        vacant_properties:
+          type: integer
+        registered_tenants:
+          type: integer
+        pending_maintenance:
+          type: integer
+        recent_payments:
+          type: array
+          items:
+            $ref: "#/components/schemas/RentPayment"
+    TenantDashboard:
+      type: object
+      properties:
+        tenancy:
+          allOf:
+            - $ref: "#/components/schemas/Tenancy"
+          nullable: true
+        recent_payments:
+          type: array
+          items:
+            $ref: "#/components/schemas/RentPayment"
+        maintenance_requests:
+          type: array
+          items:
+            $ref: "#/components/schemas/MaintenanceRequest"
+    AdminStats:
+      type: object
+      properties:
+        total_users:
+          type: integer
+        landlords:
+          type: integer
+        tenants:
+          type: integer
+        properties_pending_approval:
+          type: integer
+    UserStatusUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - active
+            - suspended
+      required:
+        - status
+    ApprovalUpdate:
+      type: object
+      properties:
+        approval_status:
+          type: string
+          enum:
+            - pending
+            - approved
+            - rejected
+      required:
+        - approval_status

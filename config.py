@@ -30,5 +30,8 @@ class Config:
     CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY", "")
     CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "")
 
+    # SendGrid for sending emails
+    SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
+
     # Reject requests bigger than this (one image per request, each image at most 2 MB)
     MAX_CONTENT_LENGTH = 3 * 1024 * 1024

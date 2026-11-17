@@ -1,4 +1,3 @@
-
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -29,4 +28,11 @@ def create_app():
     jwt.init_app(app)
     ma.init_app(app)
 
+    from server.routes.docs import bp as docs_bp, URL_PREFIX as docs_prefix
+
+    app.register_blueprint(docs_bp, url_prefix=docs_prefix)
+
+    from server.routes.auth import bp as auth_bp, URL_PREFIX as auth_prefix
+
+    app.register_blueprint(auth_bp, url_prefix=auth_prefix)
     return app

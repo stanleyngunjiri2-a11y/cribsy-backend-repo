@@ -1,13 +1,30 @@
 """OWNER: Member 4 (Nato). Landlord dashboard, own properties, tenants and tenancies."""
+
 from flask import Blueprint, abort, jsonify, request
 
-from ..extensions import db
+from ..extension import db
 from ..models import (
-    ACTIVE_TENANCY, AVAILABILITY, PROPERTY_TYPES, TENANCY_STATUSES,
-    Amenity, MaintenanceRequest, Property, RentPayment, Tenancy, User,
+    ACTIVE_TENANCY,
+    AVAILABILITY,
+    PROPERTY_TYPES,
+    TENANCY_STATUSES,
+    Amenity,
+    MaintenanceRequest,
+    Property,
+    RentPayment,
+    Tenancy,
+    User,
 )
 from ..uploads import is_valid_image_url
-from ..utils import current_user, error, json_body, notify, parse_date, roles_required, to_int
+from ..utils import (
+    current_user,
+    error,
+    json_body,
+    notify,
+    parse_date,
+    roles_required,
+    to_int,
+)
 
 bp = Blueprint("landlord", __name__)
 URL_PREFIX = "/api/landlord"
@@ -86,7 +103,9 @@ def set_amenities(prop, names):
         name = str(raw).strip()
         if not name:
             continue
-        amenity = Amenity.query.filter(db.func.lower(Amenity.name) == name.lower()).first()
+        amenity = Amenity.query.filter(
+            db.func.lower(Amenity.name) == name.lower()
+        ).first()
         if amenity is None:
             amenity = Amenity(name=name)
             db.session.add(amenity)
@@ -118,21 +137,31 @@ def dashboard():
         .all()
     )
 
-    return jsonify({
-        "total_properties": len(properties),
-        "occupied_properties": sum(1 for p in properties if p.availability == "occupied"),
-        "vacant_properties": sum(1 for p in properties if p.availability == "vacant"),
-        "registered_tenants": tenants,
-        "pending_maintenance": pending,
-        "recent_payments": [r.to_dict() for r in recent],
-    })
+    return jsonify(
+        {
+            "total_properties": len(properties),
+            "occupied_properties": sum(
+                1 for p in properties if p.availability == "occupied"
+            ),
+            "vacant_properties": sum(
+                1 for p in properties if p.availability == "vacant"
+            ),
+            "registered_tenants": tenants,
+            "pending_maintenance": pending,
+            "recent_payments": [r.to_dict() for r in recent],
+        }
+    )
 
 
 # ---------- properties ----------
 @bp.get("/properties")
 @roles_required("landlord")
 def list_my_properties():
-    props = Property.query.filter_by(landlord_id=current_user().id).order_by(Property.id).all()
+    props = (
+        Property.query.filter_by(landlord_id=current_user().id)
+        .order_by(Property.id)
+        .all()
+    )
     return jsonify([p.to_dict() for p in props])
 
 
@@ -190,7 +219,9 @@ def delete_property(property_id):
 @roles_required("landlord")
 def list_tenants():
     """Tenancies on this landlord's properties. Add ?include_ended=true to see past tenants too."""
-    query = Tenancy.query.filter(Tenancy.property_id.in_(my_property_ids(current_user())))
+    query = Tenancy.query.filter(
+        Tenancy.property_id.in_(my_property_ids(current_user()))
+    )
     if request.args.get("include_ended") != "true":
         query = query.filter(Tenancy.status.in_(ACTIVE_TENANCY))
     return jsonify([t.to_dict() for t in query.order_by(Tenancy.id.desc()).all()])
@@ -223,26 +254,42 @@ def create_tenancy():
         return error("Please fix the highlighted fields.", 400, fields=fields)
 
     prop = own_property_or_404(property_id, user)
-    tenant = User.query.filter_by(email=tenant_email, role="tenant", status="active").first()
+    tenant = User.query.filter_by(
+        email=tenant_email, role="tenant", status="active"
+    ).first()
     if tenant is None:
-        return error("No active tenant account was found with that email.", 404,
-                     fields={"tenant_email": "Ask the tenant to register first."})
+        return error(
+            "No active tenant account was found with that email.",
+            404,
+            fields={"tenant_email": "Ask the tenant to register first."},
+        )
     if prop.approval_status != "approved":
         return error("Only approved properties can be assigned to a tenant.", 409)
     if prop.availability != "vacant":
         return error("This property is not vacant.", 409)
-    if Tenancy.query.filter(Tenancy.tenant_id == tenant.id, Tenancy.status.in_(ACTIVE_TENANCY)).first():
+    if Tenancy.query.filter(
+        Tenancy.tenant_id == tenant.id, Tenancy.status.in_(ACTIVE_TENANCY)
+    ).first():
         return error("This tenant already has an active tenancy.", 409)
 
     rent = to_int(data.get("monthly_rent")) or prop.monthly_rent
-    tenancy = Tenancy(tenant_id=tenant.id, property_id=prop.id, start_date=start, end_date=end,
-                      status="active", monthly_rent=rent)
+    tenancy = Tenancy(
+        tenant_id=tenant.id,
+        property_id=prop.id,
+        start_date=start,
+        end_date=end,
+        status="active",
+        monthly_rent=rent,
+    )
     prop.availability = "occupied"
     db.session.add(tenancy)
     db.session.commit()
 
-    notify(tenant, "You have been assigned a property",
-           f"{prop.name} ({prop.location}) is now linked to your RentConnect account.")
+    notify(
+        tenant,
+        "You have been assigned a property",
+        f"{prop.name} ({prop.location}) is now linked to your RentConnect account.",
+    )
     return jsonify(tenancy.to_dict()), 201
 
 
@@ -258,7 +305,9 @@ def update_tenancy(tenancy_id):
             fields["status"] = f"Must be one of: {', '.join(TENANCY_STATUSES)}."
         else:
             tenancy.status = data["status"]
-            tenancy.property.availability = "vacant" if tenancy.status == "ended" else "occupied"
+            tenancy.property.availability = (
+                "vacant" if tenancy.status == "ended" else "occupied"
+            )
     if "end_date" in data:
         end = parse_date(data["end_date"])
         if end is None or end <= tenancy.start_date:
