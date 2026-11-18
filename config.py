@@ -21,6 +21,11 @@ def validate_database_url(database_url, *, allow_sqlite=False):
 
 class Config:
     IS_VERCEL = os.getenv("VERCEL") == "1"
+    DEFAULT_FRONTEND_URL = (
+        "https://cribsy-system.vercel.app"
+        if IS_VERCEL
+        else "http://localhost:5173"
+    )
 
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-jwt-secret-change-me")
@@ -52,10 +57,10 @@ class Config:
 
     CORS_ORIGINS = [
         origin.strip()
-        for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+        for origin in os.getenv("CORS_ORIGINS", DEFAULT_FRONTEND_URL).split(",")
         if origin.strip()
     ]
-    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    FRONTEND_URL = os.getenv("FRONTEND_URL", DEFAULT_FRONTEND_URL)
 
     # Development helper: also return verification codes / reset links in the response.
     # Set SHOW_DEV_CODES=false before deploying.

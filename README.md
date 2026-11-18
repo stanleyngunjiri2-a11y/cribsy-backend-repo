@@ -230,8 +230,8 @@ Set `SHOW_DEV_CODES=false` in production. The development setting exposes verifi
 | `SECRET_KEY`            | `dev-secret-change-me`     | Password-reset token signing                           |
 | `JWT_SECRET_KEY`        | `dev-jwt-secret-change-me` | JWT signing                                            |
 | `DATABASE_URL`          | Required                  | PostgreSQL connection URL (Psycopg 3)                   |
-| `CORS_ORIGINS`          | `http://localhost:5173`    | Comma-separated allowed origins                        |
-| `FRONTEND_URL`          | `http://localhost:5173`    | Password-reset frontend base URL                       |
+| `CORS_ORIGINS`          | Local: `http://localhost:5173`; Vercel: `https://cribsy-system.vercel.app` | Comma-separated allowed origins |
+| `FRONTEND_URL`          | Local: `http://localhost:5173`; Vercel: `https://cribsy-system.vercel.app` | Password-reset frontend base URL |
 | `SHOW_DEV_CODES`        | `true`                     | Include development codes and reset links in responses |
 | `CLOUDINARY_CLOUD_NAME` | Empty                      | Cloudinary cloud name                                  |
 | `CLOUDINARY_API_KEY`    | Empty                      | Cloudinary API key                                     |
@@ -273,6 +273,8 @@ Add these variables in the Vercel project settings:
 ```text
 CORS_ORIGINS=https://app.example.com,https://www.app.example.com
 ```
+
+The Vercel defaults allow `https://cribsy-system.vercel.app`. If `CORS_ORIGINS` or `FRONTEND_URL` is explicitly set in Vercel project settings, update those values there as well; environment variables override the application defaults.
 
 ### 3. Initialize the database
 
