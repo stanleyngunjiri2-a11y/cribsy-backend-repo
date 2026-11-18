@@ -84,12 +84,55 @@ def active_tenancy_for(user):
 
 
 def send_email(to, subject, body):
-    """Development version: writes the email to the server log.
-    Replace the body of this function with Flask-Mail or a provider's API later."""
-    current_app.logger.info("EMAIL to=%s | subject=%s\n%s", to, subject, body)
+    """Deliver a plain-text email through SendGrid.
+
+    Returns True when SendGrid accepts the message and False when delivery
+    cannot be submitted. Never logs API keys or message contents.
+    """
+    api_key = current_app.config.get("SENDGRID_API_KEY")
+    from_email = current_app.config.get("SENDGRID_FROM_EMAIL")
+
+    if not api_key or not from_email:
+        current_app.logger.error(
+            "Email delivery is not configured: missing SendGrid API key or sender."
+        )
+        return False
+
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail
+
+        message = Mail(
+            from_email=from_email,
+            to_emails=to,
+            subject=subject,
+            plain_text_content=body,
+        )
+
+        response = SendGridAPIClient(api_key).send(message)
+
+        if 200 <= response.status_code < 300:
+            current_app.logger.info(
+                "SendGrid accepted email to %s (HTTP %s).",
+                to,
+                response.status_code,
+            )
+            return True
+
+        current_app.logger.error(
+            "SendGrid rejected email to %s (HTTP %s).",
+            to,
+            response.status_code,
+        )
+        return False
+
+    except Exception:
+        current_app.logger.exception("SendGrid email submission failed for %s.", to)
+        return False
 
 
 def notify(user, subject, body):
     """Send an email notification only if the user has not turned notifications off."""
     if user.email_notifications:
-        send_email(user.email, subject, body)
+        return send_email(user.email, subject, body)
+    return False
