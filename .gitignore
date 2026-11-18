@@ -16,3 +16,4 @@ instance/
 
 # Environment-specific files
 .vscode/
+.vercel/
