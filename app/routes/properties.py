@@ -3,10 +3,32 @@ from flask import Blueprint, abort, jsonify, request
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 
 from ..extensions import db
-from ..models import Property, User
+from ..models import (
+    MAINTENANCE_CATEGORIES,
+    MAINTENANCE_STATUSES,
+    PAYMENT_METHODS,
+    PROPERTY_TYPES,
+    Amenity,
+    Enquiry,
+    Property,
+    User,
+)
+from ..utils import error, is_email, json_body, notify
 
 bp = Blueprint("properties", __name__)
 URL_PREFIX = "/api"
+
+
+@bp.get("/meta")
+def meta():
+    """Dropdown values used by the frontend."""
+    return jsonify({
+        "property_types": list(PROPERTY_TYPES),
+        "maintenance_categories": list(MAINTENANCE_CATEGORIES),
+        "maintenance_statuses": list(MAINTENANCE_STATUSES),
+        "payment_methods": list(PAYMENT_METHODS),
+        "amenities": [a.name for a in Amenity.query.order_by(Amenity.name).all()],
+    })
 
 
 @bp.get("/properties")
@@ -67,3 +89,36 @@ def property_detail(property_id):
             abort(404)
 
     return jsonify(prop.to_dict(include_landlord=True))
+
+
+@bp.post("/properties/<int:property_id>/enquiries")
+def create_enquiry(property_id):
+    prop = db.get_or_404(Property, property_id)
+    if prop.approval_status != "approved":
+        abort(404)
+
+    data = json_body()
+    name = str(data.get("name") or "").strip()
+    email = str(data.get("email") or "").strip().lower()
+    message = str(data.get("message") or "").strip()
+
+    fields = {}
+    if len(name) < 2:
+        fields["name"] = "Enter your name."
+    if not is_email(email):
+        fields["email"] = "Enter a valid email address."
+    if len(message) < 10:
+        fields["message"] = "Describe your enquiry in at least 10 characters."
+    if fields:
+        return error("Please fix the highlighted fields.", 400, fields=fields)
+
+    enquiry = Enquiry(property_id=prop.id, name=name, email=email, message=message)
+    db.session.add(enquiry)
+    db.session.commit()
+
+    notify(
+        prop.landlord,
+        f"New enquiry about {prop.name}",
+        f"{name} ({email}) sent this enquiry:\n\n{message}",
+    )
+    return jsonify(enquiry.to_dict()), 201

@@ -121,16 +121,16 @@ curl http://localhost:5555/api/health
 Response:
 
 ```json
-{"status":"ok"}
+{ "status": "ok" }
 ```
 
 ## Seed Accounts
 
-| Role | Email | Password |
-|---|---|---|
-| Admin | `admin@rentconnect.test` | `Admin12345` |
+| Role     | Email                       | Password      |
+| -------- | --------------------------- | ------------- |
+| Admin    | `admin@rentconnect.test`    | `Admin12345`  |
 | Landlord | `landlord@rentconnect.test` | `Landlord123` |
-| Tenant | `jane@rentconnect.test` | `Tenant1234` |
+| Tenant   | `jane@rentconnect.test`     | `Tenant1234`  |
 
 The seed file also creates tenant accounts for `brian@rentconnect.test` and `mercy@rentconnect.test` with the tenant password.
 
@@ -152,7 +152,7 @@ Tokens expire after eight hours. Passwords must contain at least eight character
 Errors use the following shape:
 
 ```json
-{"error":"Something went wrong."}
+{ "error": "Something went wrong." }
 ```
 
 Validation errors may include field-specific details:
@@ -168,21 +168,21 @@ Validation errors may include field-specific details:
 
 ## Main API Routes
 
-| Area | Routes |
-|---|---|
-| Health | `GET /api/health` |
-| Authentication | `/api/auth/register`, `/api/auth/login`, `/api/auth/verify`, `/api/auth/forgot-password`, `/api/auth/reset-password`, `/api/auth/me` |
-| Public properties | `GET /api/properties`, `GET /api/properties/<property_id>` |
-| Uploads | `POST /api/uploads/image` |
-| Landlord | `/api/landlord/dashboard`, `/api/landlord/properties`, `/api/landlord/tenants`, `/api/landlord/tenancies`, `/api/landlord/payments`, `/api/landlord/maintenance` |
-| Tenant | `/api/tenant/dashboard`, `/api/tenant/tenancy`, `/api/tenant/payments`, `/api/tenant/maintenance` |
-| Admin | `/api/admin/stats`, `/api/admin/users`, `/api/admin/properties` |
+| Area              | Routes                                                                                                                                                           |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Health            | `GET /api/health`                                                                                                                                                |
+| Authentication    | `/api/auth/register`, `/api/auth/login`, `/api/auth/verify`, `/api/auth/forgot-password`, `/api/auth/reset-password`, `/api/auth/me`                             |
+| Public properties | `GET /api/meta`, `GET /api/properties`, `GET /api/properties/<property_id>`, `POST /api/properties/<property_id>/enquiries` |
+| Uploads           | `POST /api/uploads/image`                                                                                                                                        |
+| Landlord          | `/api/landlord/dashboard`, `/api/landlord/properties`, `/api/landlord/tenants`, `/api/landlord/tenancies`, `/api/landlord/payments`, `/api/landlord/maintenance` |
+| Tenant            | `/api/tenant/dashboard`, `/api/tenant/tenancy`, `/api/tenant/payments`, `/api/tenant/maintenance`                                                                |
+| Admin             | `/api/admin/stats`, `/api/admin/users`, `/api/admin/properties`                                                                                                  |
 
 The complete request and response specification is in [docs/openapi.yaml](docs/openapi.yaml).
 
 ## API Documentation
 
-The repository includes `docs/openapi.yaml`, with an intended Swagger UI implementation in `server/routes/docs.py`. The active `app/__init__.py` application factory does not currently register that documentation blueprint, so `/api/docs` and `/api/openapi.yaml` are not exposed until that blueprint is registered.
+The interactive Swagger UI is served at [`http://localhost:5555/api/docs`](http://localhost:5555/api/docs), and the OpenAPI specification is served at [`http://localhost:5555/api/openapi.yaml`](http://localhost:5555/api/openapi.yaml). The source specification is [docs/openapi.yaml](docs/openapi.yaml).
 
 ## Database Migrations
 
@@ -221,18 +221,18 @@ Set `SHOW_DEV_CODES=false` in production. The development setting exposes verifi
 
 ## Configuration
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `SECRET_KEY` | `dev-secret-change-me` | Password-reset token signing |
-| `JWT_SECRET_KEY` | `dev-jwt-secret-change-me` | JWT signing |
-| `DATABASE_URL` | `sqlite:///cribsy.db` | SQLAlchemy database URL |
-| `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated allowed origins |
-| `FRONTEND_URL` | `http://localhost:5173` | Password-reset frontend base URL |
-| `SHOW_DEV_CODES` | `true` | Include development codes and reset links in responses |
-| `CLOUDINARY_CLOUD_NAME` | Empty | Cloudinary cloud name |
-| `CLOUDINARY_API_KEY` | Empty | Cloudinary API key |
-| `CLOUDINARY_API_SECRET` | Empty | Cloudinary API secret |
-| `SENDGRID_API_KEY` | Empty | Reserved for future email delivery |
+| Variable                | Default                    | Purpose                                                |
+| ----------------------- | -------------------------- | ------------------------------------------------------ |
+| `SECRET_KEY`            | `dev-secret-change-me`     | Password-reset token signing                           |
+| `JWT_SECRET_KEY`        | `dev-jwt-secret-change-me` | JWT signing                                            |
+| `DATABASE_URL`          | `sqlite:///cribsy.db`      | SQLAlchemy database URL                                |
+| `CORS_ORIGINS`          | `http://localhost:5173`    | Comma-separated allowed origins                        |
+| `FRONTEND_URL`          | `http://localhost:5173`    | Password-reset frontend base URL                       |
+| `SHOW_DEV_CODES`        | `true`                     | Include development codes and reset links in responses |
+| `CLOUDINARY_CLOUD_NAME` | Empty                      | Cloudinary cloud name                                  |
+| `CLOUDINARY_API_KEY`    | Empty                      | Cloudinary API key                                     |
+| `CLOUDINARY_API_SECRET` | Empty                      | Cloudinary API secret                                  |
+| `SENDGRID_API_KEY`      | Empty                      | Reserved for future email delivery                     |
 
 ## Testing
 

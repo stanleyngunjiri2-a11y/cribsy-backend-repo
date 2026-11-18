@@ -19,6 +19,10 @@ def create_app(config_class=Config):
 
     register_blueprints(app)
 
+    from server.routes.docs import bp as docs_bp, URL_PREFIX as docs_prefix
+
+    app.register_blueprint(docs_bp, url_prefix=docs_prefix)
+
     @app.get("/api/health")
     def health():
         return jsonify({"status": "ok"})
