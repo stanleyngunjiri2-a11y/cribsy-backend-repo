@@ -37,7 +37,12 @@ class Config:
 
     # Never allow SQLite in a Vercel deployment.
     if os.getenv("VERCEL") == "1" and not database_url.startswith(
-        ("postgres://", "postgresql://", "postgresql+psycopg://")
+        (
+            "postgres://",
+            "postgresql://",
+            "postgresql+psycopg://",
+            "postgresql+psycopg2://",
+        )
     ):
         raise RuntimeError(
             "Vercel deployments require a PostgreSQL DATABASE_URL."
@@ -46,7 +51,11 @@ class Config:
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
     if database_url.startswith("postgresql://"):
-        database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+        database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    if database_url.startswith("postgresql+psycopg://"):
+        database_url = database_url.replace(
+            "postgresql+psycopg://", "postgresql+psycopg2://", 1
+        )
 
     SQLALCHEMY_DATABASE_URI = database_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False

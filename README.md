@@ -37,15 +37,14 @@ app/
   routes/              # API blueprints
   uploads.py           # Cloudinary upload handling
   utils.py             # Authentication and shared validation helpers
-api/index.py           # Vercel Python serverless entry point
 docs/openapi.yaml      # OpenAPI 3 API specification
 tests/                 # Pytest suite
 migrations/            # Flask-Migrate configuration
 app.py                 # WSGI entry point (runs on port 5555)
 run.py                 # Development entry point (runs on port 5000)
+Procfile               # Render web service start command
 seed.py                # Optional sample data
 config.py              # Environment-backed configuration
-vercel.json            # Vercel build and route configuration
 ```
 
 The main application is the `app` package imported by `app.py` and `run.py`. The separate `server` package contains an older, partial implementation and is not the entry point used by these files.
@@ -236,78 +235,41 @@ Set `SHOW_DEV_CODES=false` in production. The development setting exposes verifi
 | `CLOUDINARY_API_SECRET` | Empty                      | Cloudinary API secret                                  |
 | `SENDGRID_API_KEY`      | Empty                      | Reserved for future email delivery                     |
 
-## Deploy to Vercel
+## Deploy to Render
 
-The repository includes `api/index.py` and `vercel.json`. Vercel serves the Flask application as a Python serverless function.
+Create a **Web Service** from the repository. The build command is:
 
-### 1. Create a persistent database
-
-Do not use the default SQLite database in production. SQLite data is ephemeral in serverless deployments.
-
-Create a PostgreSQL database or use a Vercel Postgres/Neon integration, then set the database URL in Vercel:
-
-```text
-DATABASE_URL=postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require
+```bash
+pip install -r requirements.txt
 ```
 
-Vercel database integrations that expose `POSTGRES_URL` or `POSTGRES_PRISMA_URL` are also detected automatically.
+Set the start command to:
 
-### 2. Configure environment variables
+```bash
+gunicorn run:app --bind 0.0.0.0:$PORT
+```
 
-Add these variables in the Vercel project settings:
+The same command is in the repository's `Procfile`. Do not use `gunicorn app:app`: Python resolves `app` to the `app/` package, which exports a `create_app()` factory but does not define an `app` object. The WSGI instance is in `run.py` as `run:app`.
+
+Attach a persistent Render PostgreSQL database and set `DATABASE_URL` to its **Internal Database URL**. Also configure these environment variables in the Render service:
 
 | Variable | Required | Example |
 |---|---|---|
-| `DATABASE_URL` | Yes | `postgresql://...` |
-| `SECRET_KEY` | Yes | A strong random string |
-| `JWT_SECRET_KEY` | Yes | A different strong random string |
-| `CORS_ORIGINS` | Yes | `https://your-frontend.vercel.app` |
-| `FRONTEND_URL` | Yes | `https://your-frontend.vercel.app` |
+| `DATABASE_URL` | Yes | Render PostgreSQL Internal Database URL |
+| `SECRET_KEY` | Yes | A strong random value |
+| `JWT_SECRET_KEY` | Yes | A different strong random value |
+| `CORS_ORIGINS` | Yes | `https://your-frontend.example.com` |
+| `FRONTEND_URL` | Yes | `https://your-frontend.example.com` |
 | `SHOW_DEV_CODES` | Yes | `false` |
 | `CLOUDINARY_CLOUD_NAME` | For uploads | Your Cloudinary cloud name |
 | `CLOUDINARY_API_KEY` | For uploads | Your Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | For uploads | Your Cloudinary API secret |
 
-`CORS_ORIGINS` accepts comma-separated origins:
+`requirements.txt` uses `psycopg2-binary`; the database URL is normalized to SQLAlchemy's `postgresql+psycopg2` driver. Do not install the older `psycopg2-binary==2.9.9` manually; Render's requirements pin `2.9.13`.
 
-```text
-CORS_ORIGINS=https://app.example.com,https://www.app.example.com
-```
+Initialize the database schema once against the Render database, or create migrations and run them as part of deployment. The repository currently has no migration revision files.
 
-### 3. Initialize the database
-
-Run schema creation against the hosted database from a local environment:
-
-```bash
-DATABASE_URL="postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require" \
-python3 -c "from app import create_app; from app.extensions import db; app=create_app(); app.app_context().push(); db.create_all()"
-```
-
-Optionally seed the database:
-
-```bash
-DATABASE_URL="postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require" python3 seed.py
-```
-
-The repository currently has no migration revision files. Create and maintain Alembic migrations before using the API for production schema changes.
-
-### 4. Deploy
-
-Import the Git repository in Vercel or run:
-
-```bash
-vercel
-```
-
-Use `vercel --prod` for a production deployment.
-
-After deployment, verify:
-
-```text
-https://YOUR-PROJECT.vercel.app/api/health
-https://YOUR-PROJECT.vercel.app/api/docs
-https://YOUR-PROJECT.vercel.app/api/openapi.yaml
-```
+After deployment, check `https://YOUR-SERVICE.onrender.com/api/health`. A healthy response includes `"database":"ready"`.
 
 ## Testing
 
