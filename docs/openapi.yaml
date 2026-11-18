@@ -16,8 +16,8 @@ info:
 
     **Values** such as statuses are lowercase with underscores (`in_progress`, `vacant`). Money is in whole Kenyan shillings. Dates use `YYYY-MM-DD`.
 servers:
-  - url: http://localhost:5555
-    description: Local development (change the port if you run on a different one)
+  - url: /
+    description: The server where this API specification is served
 tags:
   - name: Auth
     description: Register, two-step sign-in, password reset and profile.
