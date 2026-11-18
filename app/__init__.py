@@ -3,7 +3,7 @@ import os
 from flask import Flask, jsonify
 from sqlalchemy import text
 
-from config import Config
+from config import Config, validate_database_url
 
 from .extensions import cors, db, jwt, migrate
 
@@ -14,6 +14,10 @@ def create_app(config_class=Config):
     else:
         app = Flask(__name__)
     app.config.from_object(config_class)
+    validate_database_url(
+        app.config.get("SQLALCHEMY_DATABASE_URI"),
+        allow_sqlite=app.config.get("TESTING", False),
+    )
 
     db.init_app(app)
     migrate.init_app(app, db)

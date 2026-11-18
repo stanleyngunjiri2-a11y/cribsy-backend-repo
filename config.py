@@ -5,7 +5,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+def validate_database_url(database_url, *, allow_sqlite=False):
+    if allow_sqlite and database_url and database_url.startswith("sqlite:"):
+        return
+    if not database_url:
+        raise RuntimeError(
+            "PostgreSQL is required. Configure DATABASE_URL with a PostgreSQL URL."
+        )
+    if not database_url.startswith("postgresql+psycopg://"):
+        raise RuntimeError(
+            "Only PostgreSQL is supported. Configure DATABASE_URL with a PostgreSQL URL."
+        )
 
 
 class Config:
@@ -28,25 +39,13 @@ class Config:
         or os.getenv("POSTGRES_PRISMA_URL")
     )
 
-    if not database_url:
-        if os.getenv("VERCEL") == "1":
-            raise RuntimeError(
-                "PostgreSQL is required on Vercel. Configure DATABASE_URL."
+    if database_url:
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace("postgres://", "postgresql://", 1)
+        if database_url.startswith("postgresql://"):
+            database_url = database_url.replace(
+                "postgresql://", "postgresql+psycopg://", 1
             )
-        database_url = "sqlite:///" + os.path.join(BASE_DIR, "cribsy.db")
-
-    # Never allow SQLite in a Vercel deployment.
-    if os.getenv("VERCEL") == "1" and not database_url.startswith(
-        ("postgres://", "postgresql://", "postgresql+psycopg://")
-    ):
-        raise RuntimeError(
-            "Vercel deployments require a PostgreSQL DATABASE_URL."
-        )
-
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
-    if database_url.startswith("postgresql://"):
-        database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
 
     SQLALCHEMY_DATABASE_URI = database_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False

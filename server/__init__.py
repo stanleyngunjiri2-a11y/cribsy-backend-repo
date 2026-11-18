@@ -5,7 +5,7 @@ from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager
 from flask_marshmallow import Marshmallow
 
-from config import Config
+from config import Config, validate_database_url
 
 # Initialize extensions
 db = SQLAlchemy()
@@ -20,6 +20,7 @@ def create_app():
 
     # Load configuration
     app.config.from_object(Config)
+    validate_database_url(app.config.get("SQLALCHEMY_DATABASE_URI"))
 
     # Initialize extensions with Flask
     db.init_app(app)
