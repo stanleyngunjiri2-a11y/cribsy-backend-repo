@@ -4,7 +4,7 @@ from functools import wraps  # <-- ADD THIS LINE
 from flask import jsonify, request, current_app
 from flask_jwt_extended import get_jwt_identity
 from .extension import db
-from ..models import User
+from .models import User
 
 import os
 from sendgrid import SendGridAPIClient
