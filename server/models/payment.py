@@ -13,9 +13,7 @@ class RentPayment(db.Model):
     method = db.Column(db.String(30), nullable=False, default="Mobile money")
     status = db.Column(db.String(20), nullable=False, default="paid")
 
-    tenancy = db.relationship(
-        "Tenancy", backref=db.backref("payments", cascade="all, delete-orphan")
-    )
+    tenancy = db.relationship("Tenancy", backref=db.backref("payments", cascade="all, delete-orphan"))
 
     def to_dict(self):
         return {
