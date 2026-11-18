@@ -116,8 +116,11 @@ This entry point listens on `http://localhost:5000`.
 Check the server:
 
 ```bash
+curl http://localhost:5555/
 curl http://localhost:5555/api/health
 ```
+
+The root URL returns links to the API documentation and health check.
 
 Response:
 

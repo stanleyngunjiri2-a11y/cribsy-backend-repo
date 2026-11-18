@@ -37,9 +37,12 @@ def real_routes(app):
 
 
 def test_the_docs_page_and_the_spec_are_served(client):
+    root = client.get("/")
     page = client.get("/api/docs")
     spec = client.get("/api/openapi.yaml")
 
+    assert root.status_code == 200
+    assert root.get_json()["docs"] == "/api/docs"
     assert page.status_code == 200
     assert b"swagger-ui" in page.data
     assert spec.status_code == 200

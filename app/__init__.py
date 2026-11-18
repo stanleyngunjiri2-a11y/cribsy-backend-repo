@@ -29,6 +29,14 @@ def create_app(config_class=Config):
 
     app.register_blueprint(docs_bp, url_prefix=docs_prefix)
 
+    @app.get("/")
+    def index():
+        return jsonify({
+            "service": "RentConnect API",
+            "docs": "/api/docs",
+            "health": "/api/health",
+        })
+
     @app.get("/api/health")
     def health():
         if app.config.get("DATABASE_READY") is False:
