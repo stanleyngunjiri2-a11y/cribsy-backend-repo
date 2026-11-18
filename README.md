@@ -123,7 +123,7 @@ curl http://localhost:5555/api/health
 Response:
 
 ```json
-{ "status": "ok" }
+{"status":"ok","database":"ready"}
 ```
 
 ## Seed Accounts

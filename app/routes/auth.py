@@ -78,8 +78,20 @@ def login():
     ))
     db.session.commit()
 
-    send_email(user.email, "Your RentConnect verification code",
-               f"Your code is {code}. It expires in {CODE_MINUTES} minutes.")
+    email_sent = send_email(
+        user.email,
+        "Your RentConnect verification code",
+        f"Your code is {code}. It expires in {CODE_MINUTES} minutes.",
+    )
+
+    if not email_sent:
+        # Invalidate the code so the user cannot verify with a code they never received.
+        VerificationCode.query.filter_by(user_id=user.id, used=False).update({"used": True})
+        db.session.commit()
+        return error(
+            "We could not send your verification email. Please try again later.",
+            503,
+        )
 
     body = {"verification_required": True, "email": user.email, "message": "Verification code sent."}
     if current_app.config["SHOW_DEV_CODES"]:

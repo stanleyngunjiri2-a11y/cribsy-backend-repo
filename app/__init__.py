@@ -1,4 +1,5 @@
 from flask import Flask, jsonify
+from sqlalchemy import text
 
 from config import Config
 
@@ -25,7 +26,25 @@ def create_app(config_class=Config):
 
     @app.get("/api/health")
     def health():
-        return jsonify({"status": "ok"})
+        if app.config.get("DATABASE_READY") is False:
+            return jsonify({
+                "status": "error",
+                "database": "unavailable",
+            }), 503
+
+        try:
+            db.session.execute(text("SELECT 1"))
+        except Exception:
+            app.logger.exception("Database health check failed")
+            return jsonify({
+                "status": "error",
+                "database": "unavailable",
+            }), 503
+
+        return jsonify({
+            "status": "ok",
+            "database": "ready",
+        })
 
     @app.errorhandler(404)
     def not_found(_error):

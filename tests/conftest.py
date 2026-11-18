@@ -30,3 +30,12 @@ def app():
 @pytest.fixture()
 def client(app):
     return app.test_client()
+
+
+@pytest.fixture(autouse=True)
+def mock_auth_email_delivery(monkeypatch):
+    """Prevent automated authentication tests from sending real emails."""
+    monkeypatch.setattr(
+        "app.routes.auth.send_email",
+        lambda *args, **kwargs: True,
+    )
