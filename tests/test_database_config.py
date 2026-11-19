@@ -1,6 +1,6 @@
 import pytest
 
-from config import validate_database_url
+from config import Config, validate_database_url
 
 
 def test_postgresql_url_is_accepted():
@@ -19,3 +19,10 @@ def test_sqlite_url_is_rejected_outside_tests():
 
 def test_sqlite_url_is_allowed_for_tests():
     validate_database_url("sqlite://", allow_sqlite=True)
+
+
+def test_database_engine_recycles_stale_connections():
+    assert Config.SQLALCHEMY_ENGINE_OPTIONS == {
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+    }
