@@ -1,7 +1,7 @@
 """OWNER: Member 6 (Lynn). Maintenance requests: tenants report issues, landlords follow them up."""
 from flask import Blueprint, abort, jsonify, request
 from email_service import send_email
-from ..extension import db
+from ..extensions import db
 from ..models import (
     MAINTENANCE_CATEGORIES, MAINTENANCE_STATUSES, MaintenancePhoto, MaintenanceRequest, Property, Tenancy,
 )
@@ -167,4 +167,3 @@ def update_request_status(request_id):
         )
 
     return jsonify(row.to_dict())
-

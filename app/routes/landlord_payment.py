@@ -5,7 +5,7 @@ from datetime import date
 from flask import Blueprint, abort, jsonify, request
 from email_service import send_email
 
-from ..extension import db
+from ..extensions import db
 from ..models import PAYMENT_METHODS, PAYMENT_STATUSES, Property, RentPayment, Tenancy
 from ..utils import current_user, error, json_body, notify, parse_date, roles_required, to_int
 
