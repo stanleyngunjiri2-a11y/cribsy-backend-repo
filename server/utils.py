@@ -1,19 +1,22 @@
 # server/utils.py
 
 from functools import wraps  # <-- ADD THIS LINE
-from flask import jsonify, request, current_app
+from flask import jsonify, request
 from flask_jwt_extended import get_jwt_identity
 from .extension import db
 from .models import User
-
-import os
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+from email_service import send_email
 
 
-def error(message, status_code=400):
-    return jsonify({"error": message}), status_code
 
+
+def error(message, status_code=400, fields=None):
+    response = {"error": message}
+
+    if fields:
+        response["fields"] = fields
+
+    return jsonify(response), status_code
 
 def json_body():
     return request.get_json() or {}
@@ -38,37 +41,34 @@ def roles_required(*roles):
     return decorator
 
 
+
 def notify(user, title, message):
-    # This is a placeholder for whatever notification logic you have
+    if not user:
+        print("Notification skipped: user not found.")
+        return
+
     print(f"Notification for {user.email}: {title} - {message}")
 
+    if not user.email:
+        print("Email not sent: user has no email address.")
+        return
 
-# SENDGRID EMAIL FUNCTION
+    html_content = f"""
+        <h2>{title}</h2>
+        <p>{message}</p>
+        <p>Thank you for using Cribsy!</p>
+    """
 
-
-def send_email(to_email, subject, html_content):
-    # Make sure this matches the verified sender in your SendGrid dashboard
-    from_email = "your_verified_sender@example.com"
-
-    message = Mail(
-        from_email=from_email,
-        to_emails=to_email,
-        subject=subject,
-        html_content=html_content,
+    result = send_email(
+        to_email=user.email,
+        subject=title,
+        html_content=html_content
     )
 
-    try:
-        # Pull the key securely from your config.py
-        api_key = current_app.config.get("SENDGRID_API_KEY")
+    if result:
+        print(f"Email notification accepted for {user.email}")
+    else:
+        print(f"Email notification failed for {user.email}")
 
-        if not api_key:
-            print("WARNING: SENDGRID_API_KEY is not set in config.")
-            return False
 
-        sg = SendGridAPIClient(api_key)
-        response = sg.send(message)
-        print(f"✅ Email sent to {to_email}! Status code: {response.status_code}")
-        return True
-    except Exception as e:
-        print(f"❌ Error sending email: {e}")
-        return False
+

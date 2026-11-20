@@ -1,9 +1,11 @@
+
 import secrets
 from datetime import date
 
 from flask import Blueprint, abort, jsonify, request
+from email_service import send_email
 
-from ..extensions import db
+from ..extension import db
 from ..models import PAYMENT_METHODS, PAYMENT_STATUSES, Property, RentPayment, Tenancy
 from ..utils import current_user, error, json_body, notify, parse_date, roles_required, to_int
 
@@ -25,11 +27,18 @@ def own_tenancy_or_404(tenancy_id, user):
 @bp.get("/payments")
 @roles_required("landlord")
 def list_payments():
-    query = RentPayment.query.join(Tenancy).filter(Tenancy.property_id.in_(my_property_ids(current_user())))
+    query = RentPayment.query.join(Tenancy).filter(
+        Tenancy.property_id.in_(my_property_ids(current_user()))
+    )
     tenancy_id = request.args.get("tenancy_id", type=int)
+
     if tenancy_id:
         query = query.filter(RentPayment.tenancy_id == tenancy_id)
-    payments = query.order_by(RentPayment.paid_on.desc(), RentPayment.id.desc()).all()
+
+    payments = query.order_by(
+        RentPayment.paid_on.desc(), RentPayment.id.desc()
+    ).all()
+
     return jsonify([p.to_dict() for p in payments])
 
 
@@ -57,21 +66,57 @@ def record_payment(tenancy_id):
         fields["status"] = f"Must be one of: {', '.join(PAYMENT_STATUSES)}."
 
     reference = str(data.get("reference") or "").strip()
+
     if not reference and paid_on:
         reference = f"RC-{paid_on:%Y%m%d}-{secrets.token_hex(3).upper()}"
+
     if reference and RentPayment.query.filter_by(reference=reference).first():
         fields["reference"] = "This reference already exists."
 
     if fields:
         return error("Please fix the highlighted fields.", 400, fields=fields)
 
-    payment = RentPayment(tenancy_id=tenancy.id, amount=amount, paid_on=paid_on,
-                          reference=reference, method=method, status=status)
+    payment = RentPayment(
+        tenancy_id=tenancy.id,
+        amount=amount,
+        paid_on=paid_on,
+        reference=reference,
+        method=method,
+        status=status
+    )
+
     db.session.add(payment)
     db.session.commit()
 
-    notify(tenancy.tenant, "Rent payment recorded",
-           f"A {status} payment of KSh {amount:,} was recorded for {tenancy.property.name}. Reference: {reference}.")
+    # Existing in-app notification
+    notify(
+        tenancy.tenant,
+        "Rent payment recorded",
+        f"A {status} payment of KSh {amount:,} was recorded for "
+        f"{tenancy.property.name}. Reference: {reference}."
+    )
+
+    # Email receipt only for confirmed payments
+    if status == "paid":
+        tenant_email = getattr(tenancy.tenant, "email", None)
+
+        if tenant_email:
+            send_email(
+                to_email=tenant_email,
+                subject="Cribsy - Rent Payment Receipt",
+                html_content=f"""
+                    <h2>Payment Confirmation</h2>
+                    <p>Hello {tenancy.tenant.full_name},</p>
+                    <p>Your rent payment has been recorded successfully.</p>
+                    <p><strong>Property:</strong> {tenancy.property.name}</p>
+                    <p><strong>Amount:</strong> KSh {amount:,}</p>
+                    <p><strong>Payment date:</strong> {paid_on}</p>
+                    <p><strong>Method:</strong> {method}</p>
+                    <p><strong>Reference:</strong> {reference}</p>
+                    <p>Thank you for using Cribsy!</p>
+                """
+            )
+
     return jsonify(payment.to_dict()), 201
 
 
@@ -79,12 +124,39 @@ def record_payment(tenancy_id):
 @roles_required("landlord")
 def update_payment(payment_id):
     payment = db.get_or_404(RentPayment, payment_id)
+
     if payment.tenancy.property.landlord_id != current_user().id:
         abort(404)
 
     status = json_body().get("status")
+
     if status not in PAYMENT_STATUSES:
-        return error(f"Status must be one of: {', '.join(PAYMENT_STATUSES)}.", 400)
+        return error(
+            f"Status must be one of: {', '.join(PAYMENT_STATUSES)}.", 400
+        )
+
+    old_status = payment.status
+
     payment.status = status
     db.session.commit()
+
+    # Send email only when payment becomes paid
+    if old_status != "paid" and status == "paid":
+        tenant = payment.tenancy.tenant
+        tenant_email = getattr(tenant, "email", None)
+
+        if tenant_email:
+            send_email(
+                to_email=tenant_email,
+                subject="Cribsy - Payment Confirmed",
+                html_content=f"""
+                    <h2>Payment Confirmed!</h2>
+                    <p>Hello {tenant.full_name},</p>
+                    <p>Your rent payment has been confirmed.</p>
+                    <p><strong>Amount:</strong> KSh {payment.amount:,}</p>
+                    <p><strong>Reference:</strong> {payment.reference}</p>
+                    <p>Thank you for using Cribsy!</p>
+                """
+            )
+
     return jsonify(payment.to_dict())

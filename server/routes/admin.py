@@ -1,7 +1,7 @@
 """OWNER: Member 6 (Lynn). Administrator tools: users and property approval."""
 from flask import Blueprint, jsonify, request
 
-from ..extensions import db
+from ..extension import db
 from ..models import APPROVALS, USER_STATUSES, Property, User
 from ..utils import current_user, error, json_body, notify, roles_required
 
