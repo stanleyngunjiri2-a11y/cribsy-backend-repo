@@ -1,14 +1,23 @@
+import os
+
 from flask import Flask, jsonify
 from sqlalchemy import text
 
-from config import Config
+from config import Config, validate_database_url
 
 from .extensions import cors, db, jwt, migrate
 
 
 def create_app(config_class=Config):
-    app = Flask(__name__)
+    if os.getenv("VERCEL") == "1":
+        app = Flask(__name__, instance_path="/tmp/cribsy-instance")
+    else:
+        app = Flask(__name__)
     app.config.from_object(config_class)
+    validate_database_url(
+        app.config.get("SQLALCHEMY_DATABASE_URI"),
+        allow_sqlite=app.config.get("TESTING", False),
+    )
 
     db.init_app(app)
     migrate.init_app(app, db)

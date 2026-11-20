@@ -25,7 +25,7 @@ Flask REST API for a property-rental platform. It supports tenant and landlord a
 - Flask-CORS
 - Flask-Bcrypt
 - Cloudinary
-- SQLite for local development; any SQLAlchemy-supported database can be configured
+- PostgreSQL via SQLAlchemy and Psycopg
 
 ## Project Structure
 
@@ -55,7 +55,7 @@ The main application is the `app` package imported by `app.py` and `run.py`. The
 - Python 3.10 or newer
 - `pip`
 - Optional: Cloudinary account for uploads
-- Optional: a hosted PostgreSQL or other SQLAlchemy-compatible database
+- A PostgreSQL database for local development and deployment
 
 ## Local Setup
 
@@ -70,12 +70,12 @@ python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements-dev.txt
 ```
 
-Create a `.env` file in the repository root. SQLite is the default, so no database variables are required for local development.
+Create a `.env` file in the repository root and set `DATABASE_URL` to your PostgreSQL connection URL. PostgreSQL is required for application startup; SQLite is used only by the automated tests.
 
 ```dotenv
 SECRET_KEY=change-this-in-production
 JWT_SECRET_KEY=change-this-in-production
-DATABASE_URL=sqlite:///cribsy.db
+DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:5432/DATABASE
 FRONTEND_URL=http://localhost:5173
 CORS_ORIGINS=http://localhost:5173
 SHOW_DEV_CODES=true
@@ -188,7 +188,9 @@ The interactive Swagger UI is served at [`http://localhost:5555/api/docs`](http:
 
 ## Database Migrations
 
-Flask-Migrate is initialized in the application and migration configuration is in `migrations/`. The repository currently has no migration revisions in `migrations/versions`, so `db.create_all()` is the documented local setup method.
+Flask-Migrate is initialized in the application and migration configuration is in `migrations/`. The repository currently has no migration revisions in `migrations/versions`, so `db.create_all()` is the documented local setup method. It creates tables in the PostgreSQL database configured by `DATABASE_URL`.
+
+Changing `DATABASE_URL` does not copy records from an existing SQLite database. Export and import existing data separately before switching if it must be preserved.
 
 For a future migration workflow:
 
@@ -227,9 +229,9 @@ Set `SHOW_DEV_CODES=false` in production. The development setting exposes verifi
 | ----------------------- | -------------------------- | ------------------------------------------------------ |
 | `SECRET_KEY`            | `dev-secret-change-me`     | Password-reset token signing                           |
 | `JWT_SECRET_KEY`        | `dev-jwt-secret-change-me` | JWT signing                                            |
-| `DATABASE_URL`          | `sqlite:///cribsy.db`      | SQLAlchemy database URL                                |
-| `CORS_ORIGINS`          | `http://localhost:5173`    | Comma-separated allowed origins                        |
-| `FRONTEND_URL`          | `http://localhost:5173`    | Password-reset frontend base URL                       |
+| `DATABASE_URL`          | Required                  | PostgreSQL connection URL (Psycopg 3)                   |
+| `CORS_ORIGINS`          | Local: `http://localhost:5173`; Vercel: `https://cribsy-system.vercel.app` | Comma-separated allowed origins |
+| `FRONTEND_URL`          | Local: `http://localhost:5173`; Vercel: `https://cribsy-system.vercel.app` | Password-reset frontend base URL |
 | `SHOW_DEV_CODES`        | `true`                     | Include development codes and reset links in responses |
 | `CLOUDINARY_CLOUD_NAME` | Empty                      | Cloudinary cloud name                                  |
 | `CLOUDINARY_API_KEY`    | Empty                      | Cloudinary API key                                     |
@@ -242,9 +244,7 @@ The repository includes `api/index.py` and `vercel.json`. Vercel serves the Flas
 
 ### 1. Create a persistent database
 
-Do not use the default SQLite database in production. SQLite data is ephemeral in serverless deployments.
-
-Create a PostgreSQL database or use a Vercel Postgres/Neon integration, then set the database URL in Vercel:
+Create a PostgreSQL database or use a Vercel Postgres/Neon integration, then set the database URL in Vercel. PostgreSQL is required in every environment:
 
 ```text
 DATABASE_URL=postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require
@@ -273,6 +273,8 @@ Add these variables in the Vercel project settings:
 ```text
 CORS_ORIGINS=https://app.example.com,https://www.app.example.com
 ```
+
+The Vercel defaults allow `https://cribsy-system.vercel.app`. If `CORS_ORIGINS` or `FRONTEND_URL` is explicitly set in Vercel project settings, update those values there as well; environment variables override the application defaults.
 
 ### 3. Initialize the database
 
@@ -323,13 +325,13 @@ Run a specific test file:
 python3 -m pytest tests/test_auth.py
 ```
 
-Tests use a fresh in-memory SQLite database and do not write to `cribsy.db`.
+Tests use a fresh in-memory SQLite database and do not need a PostgreSQL connection.
 
 ## Production Notes
 
 - Replace both development secret keys with strong, separate random values.
 - Set `SHOW_DEV_CODES=false`.
-- Use a managed database and set `DATABASE_URL`.
+- Use a managed PostgreSQL database and set `DATABASE_URL`.
 - Restrict `CORS_ORIGINS` to the deployed frontend origin.
 - Configure Cloudinary credentials if uploads are required.
 - Integrate an email provider before relying on verification codes or password resets.
