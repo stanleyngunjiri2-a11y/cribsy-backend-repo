@@ -1,7 +1,7 @@
 """OWNER: Member 6 (Lynn). Maintenance requests: tenants report issues, landlords follow them up."""
 from flask import Blueprint, abort, jsonify, request
-
-from ..extensions import db
+from email_service import send_email
+from ..extension import db
 from ..models import (
     MAINTENANCE_CATEGORIES, MAINTENANCE_STATUSES, MaintenancePhoto, MaintenanceRequest, Property, Tenancy,
 )
@@ -46,8 +46,33 @@ def create_request():
     db.session.add(request_row)
     db.session.commit()
 
-    notify(tenancy.property.landlord, f"New maintenance request: {category}",
-           f"{user.full_name} reported an issue at {tenancy.property.name}:\n\n{description}")
+    landlord = tenancy.property.landlord
+
+    notify(
+        landlord,
+        f"New maintenance request: {category}",
+        f"{user.full_name} reported an issue at "
+        f"{tenancy.property.name}:\n\n{description}"
+    )
+
+    # Email notification to landlord
+    landlord_email = getattr(landlord, "email", None)
+
+    if landlord_email:
+        send_email(
+            to_email=landlord_email,
+            subject=f"Cribsy - New Maintenance Request: {category}",
+            html_content=f"""
+                <h2>New Maintenance Request</h2>
+                <p>Hello {landlord.full_name},</p>
+                <p>A tenant has submitted a maintenance request.</p>
+                <p><strong>Tenant:</strong> {user.full_name}</p>
+                <p><strong>Property:</strong> {tenancy.property.name}</p>
+                <p><strong>Category:</strong> {category}</p>
+                <p><strong>Description:</strong> {description}</p>
+            """
+        )
+
     return jsonify(request_row.to_dict()), 201
 
 
@@ -111,6 +136,35 @@ def update_request_status(request_id):
     row.status = status
     db.session.commit()
 
-    notify(row.tenancy.tenant, "Your maintenance request was updated",
-           f"Your {row.category} request at {row.tenancy.property.name} is now: {status.replace('_', ' ')}.")
+    
+    # Existing in-app notification to tenant
+    tenant = row.tenancy.tenant
+
+    notify(
+        tenant,
+        "Your maintenance request was updated",
+        f"Your {row.category} request at "
+        f"{row.tenancy.property.name} is now: "
+        f"{status.replace('_', ' ')}."
+    )
+
+    # Email notification to tenant
+    tenant_email = getattr(tenant, "email", None)
+
+    if tenant_email:
+        send_email(
+            to_email=tenant_email,
+            subject="Cribsy - Maintenance Request Update",
+            html_content=f"""
+                <h2>Maintenance Request Update</h2>
+                <p>Hello {tenant.full_name},</p>
+                <p>Your maintenance request has been updated.</p>
+                <p><strong>Property:</strong> {row.tenancy.property.name}</p>
+                <p><strong>Category:</strong> {row.category}</p>
+                <p><strong>New status:</strong> {row.status.replace('_', ' ')}</p>
+                <p>Thank you for using Cribsy!</p>
+            """
+        )
+
     return jsonify(row.to_dict())
+
