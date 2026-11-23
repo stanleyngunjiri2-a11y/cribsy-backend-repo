@@ -6,7 +6,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from .extensions import db
 
 # Allowed values (also useful for dropdowns on the frontend)
-ROLES = ("tenant", "landlord", "admin")
+ROLES = ("tenant", "landlord", "admin", "superadmin")
 USER_STATUSES = ("active", "suspended")
 PROPERTY_TYPES = ("Apartment", "House", "Bedsitter", "Studio")
 AVAILABILITY = ("vacant", "occupied")

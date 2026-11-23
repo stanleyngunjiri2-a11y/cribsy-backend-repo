@@ -6,12 +6,12 @@ Flask REST API for a property-rental platform. It supports tenant and landlord a
 
 - Registration and two-step sign-in with email verification codes
 - Password-reset tokens
-- JWT authentication with tenant, landlord, and admin roles
+- JWT authentication with tenant, landlord, admin, and superadmin roles
 - Public property search and property details
 - Landlord dashboards, properties, tenants, tenancies, and rent payments
 - Tenant dashboards, tenancy details, rent history, and maintenance requests
 - Maintenance status updates and optional maintenance photos
-- Admin dashboards, user suspension, and property approval
+- Admin and superadmin dashboards, account management, and property approval
 - Cloudinary image uploads
 - OpenAPI 3 specification
 
@@ -181,6 +181,20 @@ Validation errors may include field-specific details:
 | Admin             | `/api/admin/stats`, `/api/admin/users`, `/api/admin/properties`                                                                                                  |
 
 The complete request and response specification is in [docs/openapi.yaml](docs/openapi.yaml).
+
+### Administrator and superadmin roles
+
+Admins can review and approve properties and suspend or reactivate tenant and landlord accounts. Superadmins can also view and manage administrator accounts. Neither role can suspend its own account, and superadmin accounts cannot be suspended through the API. Public registration only creates tenant and landlord accounts.
+
+To establish the first superadmin, use an existing administrator account and promote it directly in PostgreSQL as the database owner:
+
+```sql
+UPDATE users
+SET role = 'superadmin'
+WHERE email = 'admin@example.com' AND role = 'admin';
+```
+
+The role uses the existing `users.role` string column, so this change does not require a schema migration.
 
 ## API Documentation
 

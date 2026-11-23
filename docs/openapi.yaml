@@ -32,7 +32,7 @@ tags:
   - name: Maintenance
     description: Maintenance requests from both sides.
   - name: Admin
-    description: Users and property approval.
+    description: Administrator and superadministrator dashboard, account management and property approval.
 paths:
   /api/auth/register:
     post:
@@ -1104,7 +1104,7 @@ paths:
         - Admin
       operationId: adminStats
       summary: Totals
-      description: "**Who can call it:** admin."
+      description: "**Who can call it:** admin or superadmin."
       security:
         - bearerAuth: []
       responses:
@@ -1124,7 +1124,7 @@ paths:
         - Admin
       operationId: adminUsers
       summary: List users
-      description: "**Who can call it:** admin."
+      description: "**Who can call it:** admin or superadmin. Only superadmins can view administrator accounts."
       parameters:
         - name: role
           in: query
@@ -1136,6 +1136,7 @@ paths:
               - tenant
               - landlord
               - admin
+              - superadmin
         - name: status
           in: query
           required: false
@@ -1167,9 +1168,9 @@ paths:
       operationId: setUserStatus
       summary: Suspend or reactivate a user
       description: |-
-        **Who can call it:** admin.
+        **Who can call it:** admin or superadmin.
 
-        Admin accounts cannot be suspended. A suspended user is locked out immediately, even with a token that has not expired.
+        Admins can manage tenant and landlord accounts. Only superadmins can manage admin accounts. Superadmin accounts and the caller's own account cannot be suspended. A suspended user is locked out immediately, even with a token that has not expired.
       parameters:
         - $ref: "#/components/parameters/UserId"
       requestBody:
@@ -1203,7 +1204,7 @@ paths:
         - Admin
       operationId: adminProperties
       summary: List all properties
-      description: "**Who can call it:** admin."
+      description: "**Who can call it:** admin or superadmin."
       parameters:
         - name: approval_status
           in: query
@@ -1237,7 +1238,7 @@ paths:
       operationId: setPropertyApproval
       summary: Approve or reject a property
       description: |-
-        **Who can call it:** admin.
+        **Who can call it:** admin or superadmin.
 
         Approved properties become public. The landlord is notified.
       parameters:
@@ -1491,6 +1492,7 @@ components:
             - tenant
             - landlord
             - admin
+            - superadmin
         status:
           type: string
           enum:
@@ -1964,7 +1966,21 @@ components:
           type: integer
         tenants:
           type: integer
+        administrators:
+          type: integer
+        superadmins:
+          type: integer
+        active_users:
+          type: integer
+        suspended_users:
+          type: integer
+        total_properties:
+          type: integer
         properties_pending_approval:
+          type: integer
+        properties_approved:
+          type: integer
+        properties_rejected:
           type: integer
     UserStatusUpdate:
       type: object

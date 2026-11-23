@@ -22,14 +22,74 @@ def test_only_admins_can_use_admin_routes(client):
 def test_stats(client, admin):
     landlord = make_user("landlord")
     make_user("tenant")
+    make_user("tenant", status="suspended")
+    make_user("admin")
+    make_user("superadmin")
     make_property(landlord, approval_status="pending")
+    make_property(landlord, approval_status="approved")
+    make_property(landlord, approval_status="rejected")
 
     data = client.get("/api/admin/stats", headers=auth_header(admin)).get_json()
 
-    assert data["total_users"] == 3
+    assert data["total_users"] == 6
     assert data["landlords"] == 1
-    assert data["tenants"] == 1
+    assert data["tenants"] == 2
+    assert data["administrators"] == 2
+    assert data["superadmins"] == 1
+    assert data["active_users"] == 5
+    assert data["suspended_users"] == 1
+    assert data["total_properties"] == 3
     assert data["properties_pending_approval"] == 1
+    assert data["properties_approved"] == 1
+    assert data["properties_rejected"] == 1
+
+
+def test_superadmins_can_use_admin_routes(client):
+    superadmin = make_user("superadmin")
+
+    assert client.get("/api/admin/stats", headers=auth_header(superadmin)).status_code == 200
+    assert client.get("/api/admin/properties", headers=auth_header(superadmin)).status_code == 200
+
+
+def test_only_superadmins_can_view_and_manage_administrator_accounts(client, admin):
+    other_admin = make_user("admin")
+    superadmin = make_user("superadmin")
+    superadmin_headers = auth_header(superadmin)
+
+    assert client.get("/api/admin/users?role=admin", headers=auth_header(admin)).status_code == 403
+    assert client.get("/api/admin/users?role=superadmin", headers=auth_header(admin)).status_code == 403
+    listed_admins = client.get("/api/admin/users?role=admin", headers=superadmin_headers).get_json()
+    assert {user["id"] for user in listed_admins} == {admin.id, other_admin.id}
+
+    assert client.patch(
+        f"/api/admin/users/{other_admin.id}/status",
+        json={"status": "suspended"},
+        headers=auth_header(admin),
+    ).status_code == 403
+    response = client.patch(
+        f"/api/admin/users/{other_admin.id}/status",
+        json={"status": "suspended"},
+        headers=superadmin_headers,
+    )
+    assert response.status_code == 200
+    assert response.get_json()["status"] == "suspended"
+
+
+def test_superadmins_cannot_suspend_themselves_or_another_superadmin(client):
+    superadmin = make_user("superadmin")
+    other_superadmin = make_user("superadmin")
+    headers = auth_header(superadmin)
+
+    assert client.patch(
+        f"/api/admin/users/{superadmin.id}/status",
+        json={"status": "suspended"},
+        headers=headers,
+    ).status_code == 403
+    assert client.patch(
+        f"/api/admin/users/{other_superadmin.id}/status",
+        json={"status": "suspended"},
+        headers=headers,
+    ).status_code == 403
 
 
 def test_filter_users_by_role_and_status(client, admin):
@@ -107,6 +167,17 @@ def test_approving_a_property_makes_it_public(client, admin):
     db.session.refresh(prop)
     assert prop.approval_status == "approved"
     assert client.get(f"/api/properties/{prop.id}").status_code == 200
+
+
+def test_superadmin_can_view_a_nonpublic_property(client):
+    prop = make_property(make_user("landlord"), approval_status="rejected")
+
+    response = client.get(
+        f"/api/properties/{prop.id}",
+        headers=auth_header(make_user("superadmin")),
+    )
+
+    assert response.status_code == 200
 
 
 def test_rejecting_a_property_keeps_it_hidden(client, admin):

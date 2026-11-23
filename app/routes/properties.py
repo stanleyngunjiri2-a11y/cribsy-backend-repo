@@ -85,7 +85,7 @@ def property_detail(property_id):
         verify_jwt_in_request(optional=True)
         identity = get_jwt_identity()
         user = db.session.get(User, int(identity)) if identity else None
-        if user is None or (user.role != "admin" and prop.landlord_id != user.id):
+        if user is None or (user.role not in ("admin", "superadmin") and prop.landlord_id != user.id):
             abort(404)
 
     return jsonify(prop.to_dict(include_landlord=True))
