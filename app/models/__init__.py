@@ -17,6 +17,8 @@ from ..model_registry import (
     MaintenancePhoto,
     MaintenanceRequest,
     Property,
+    PropertyApplication,
+    PropertyUnit,
     RentPayment,
     Tenancy,
     User,
@@ -32,6 +34,7 @@ __all__ = [
     "PAYMENT_METHODS", "PAYMENT_STATUSES", "PROPERTY_TYPES",
     "ROLES", "TENANCY_STATUSES", "USER_STATUSES",
     "Amenity", "Enquiry", "MaintenancePhoto", "MaintenanceRequest",
-    "Property", "RentPayment", "Tenancy", "User", "VerificationCode",
+    "Property", "PropertyApplication", "PropertyUnit",
+    "RentPayment", "Tenancy", "User", "VerificationCode",
     "iso", "property_amenities", "utcnow",
 ]

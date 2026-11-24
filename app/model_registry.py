@@ -119,6 +119,7 @@ class Property(db.Model):
     landlord = db.relationship("User", back_populates="properties")
     amenities = db.relationship("Amenity", secondary=property_amenities, back_populates="properties")
     tenancies = db.relationship("Tenancy", back_populates="property")
+    units = db.relationship("PropertyUnit", back_populates="property", cascade="all, delete-orphan")
     enquiries = db.relationship("Enquiry", back_populates="property", cascade="all, delete-orphan")
 
     def to_dict(self, include_landlord=False):
@@ -174,6 +175,7 @@ class Tenancy(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     tenant_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     property_id = db.Column(db.Integer, db.ForeignKey("properties.id"), nullable=False)
+    unit_id = db.Column(db.Integer, db.ForeignKey("property_units.id"), nullable=True)
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
     status = db.Column(db.String(20), nullable=False, default="active")
@@ -181,6 +183,7 @@ class Tenancy(db.Model):
 
     tenant = db.relationship("User", back_populates="tenancies")
     property = db.relationship("Property", back_populates="tenancies")
+    unit = db.relationship("PropertyUnit", back_populates="tenancies")
     payments = db.relationship("RentPayment", back_populates="tenancy", cascade="all, delete-orphan")
     maintenance_requests = db.relationship(
         "MaintenanceRequest", back_populates="tenancy", cascade="all, delete-orphan"
@@ -209,6 +212,7 @@ class Tenancy(db.Model):
             "end_date": iso(self.end_date),
             "status": self.status,
             "monthly_rent": self.monthly_rent,
+            "unit": self.unit.to_dict() if self.unit else None,
         }
 
 
@@ -278,3 +282,82 @@ class MaintenancePhoto(db.Model):
     file_url = db.Column(db.String(500), nullable=False)
 
     request = db.relationship("MaintenanceRequest", back_populates="photos")
+
+
+
+class PropertyUnit(db.Model):
+    """An individually rentable unit within a property."""
+
+    __tablename__ = "property_units"
+    __table_args__ = (
+        db.UniqueConstraint("property_id", "unit_number", name="uq_property_unit_number"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    property_id = db.Column(db.Integer, db.ForeignKey("properties.id"), nullable=False, index=True)
+    unit_number = db.Column(db.String(80), nullable=False)
+    monthly_rent = db.Column(db.Integer, nullable=False)
+    bedrooms = db.Column(db.Integer, nullable=False, default=0)
+    bathrooms = db.Column(db.Integer, nullable=False, default=0)
+    description = db.Column(db.Text)
+    status = db.Column(db.String(20), nullable=False, default="available")
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    property = db.relationship("Property", back_populates="units")
+    tenancies = db.relationship("Tenancy", back_populates="unit")
+
+    def to_dict(self):
+        occupied = any(t.status in ACTIVE_TENANCY for t in self.tenancies)
+        return {
+            "id": self.id,
+            "property_id": self.property_id,
+            "unit_number": self.unit_number,
+            "monthly_rent": self.monthly_rent,
+            "bedrooms": self.bedrooms,
+            "bathrooms": self.bathrooms,
+            "description": self.description,
+            "status": "occupied" if occupied else "available",
+            "created_at": iso(self.created_at),
+        }
+
+
+class PropertyApplication(db.Model):
+    """A tenant's application to rent a property."""
+
+    __tablename__ = "property_applications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    property_id = db.Column(db.Integer, db.ForeignKey("properties.id"), nullable=False, index=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    message = db.Column(db.Text)
+    status = db.Column(db.String(20), nullable=False, default="pending", index=True)
+    reviewed_by = db.Column(db.Integer, db.ForeignKey("users.id"))
+    reviewed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    property = db.relationship("Property")
+    tenant = db.relationship("User", foreign_keys=[tenant_id])
+    reviewer = db.relationship("User", foreign_keys=[reviewed_by])
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "property_id": self.property_id,
+            "property": {
+                "id": self.property.id,
+                "name": self.property.name,
+                "location": self.property.location,
+                "image_url": self.property.image_url,
+            },
+            "tenant_id": self.tenant_id,
+            "tenant": {
+                "id": self.tenant.id,
+                "full_name": self.tenant.full_name,
+                "email": self.tenant.email,
+                "phone": self.tenant.phone,
+            },
+            "message": self.message,
+            "status": self.status,
+            "reviewed_at": iso(self.reviewed_at),
+            "created_at": iso(self.created_at),
+        }
