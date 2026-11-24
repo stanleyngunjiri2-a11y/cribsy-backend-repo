@@ -7,7 +7,7 @@ from flask import current_app
 
 ALLOWED_TYPES = ("image/jpeg", "image/png", "image/webp")
 ALLOWED_FORMATS = ["jpg", "jpeg", "png", "webp"]
-MAX_BYTES = 2 * 1024 * 1024  # 2 MB
+MAX_BYTES = 6 * 1024 * 1024  # 6 MB
 
 
 def cloudinary_ready():
@@ -29,7 +29,7 @@ def upload_image(file, folder):
     size = file.stream.tell()
     file.stream.seek(0)
     if size > MAX_BYTES:
-        raise ValueError("The image must be 2 MB or smaller.")
+        raise ValueError("The image must be 6 MB or smaller.")
 
     config = current_app.config
     cloudinary.config(

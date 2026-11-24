@@ -65,7 +65,7 @@ def create_app(config_class=Config):
 
     @app.errorhandler(413)
     def too_large(_error):
-        return jsonify({"error": "The file is too large. Use an image of 2 MB or less."}), 413
+        return jsonify({"error": "The file is too large. Use an image of 6 MB or less."}), 413
 
     @app.errorhandler(500)
     def server_error(_error):

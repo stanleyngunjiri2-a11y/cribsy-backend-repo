@@ -46,7 +46,7 @@ def test_model_helpers_and_user_password_serialization():
     assert now.tzinfo is None
     assert models.iso(None) is None
     assert models.iso(now) == now.isoformat()
-    assert models.ROLES == ("tenant", "landlord", "admin")
+    assert models.ROLES == ("tenant", "landlord", "admin", "superadmin")
     assert models.USER_STATUSES == ("active", "suspended")
     assert models.PROPERTY_TYPES == ("Apartment", "House", "Bedsitter", "Studio")
     assert models.AVAILABILITY == ("vacant", "occupied")

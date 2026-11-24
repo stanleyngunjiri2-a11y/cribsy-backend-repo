@@ -85,5 +85,5 @@ class Config:
     SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
     SENDGRID_FROM_EMAIL = os.getenv("SENDGRID_FROM_EMAIL", "")
 
-    # Reject requests bigger than this (one image per request, each image at most 2 MB)
-    MAX_CONTENT_LENGTH = 3 * 1024 * 1024
+    # Allow one image up to 6 MB plus multipart form-data overhead.
+    MAX_CONTENT_LENGTH = 7 * 1024 * 1024

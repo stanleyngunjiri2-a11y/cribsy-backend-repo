@@ -239,7 +239,7 @@ paths:
       description: |-
         **Who can call it:** landlord, tenant.
 
-        Send the file as `multipart/form-data` in a field called `file` (JPG, PNG or WebP, at most 2 MB). Save the returned `url` as `image_url` (property) or in `photo_urls` (maintenance request). Landlords' images go to the `properties` folder and tenants' to `maintenance`.
+        Send the file as `multipart/form-data` in a field called `file` (JPG, PNG or WebP, at most 6 MB). Save the returned `url` as `image_url` (property) or in `photo_urls` (maintenance request). Landlords' images go to the `properties` folder and tenants' to `maintenance`.
       requestBody:
         required: true
         content:

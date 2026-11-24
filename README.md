@@ -222,7 +222,7 @@ POST /api/uploads/image
 Content-Type: multipart/form-data
 ```
 
-Use the multipart field name `file`. The maximum size is 2 MB. Set all three Cloudinary environment variables before uploading.
+Use the multipart field name `file`. The maximum image size is 6 MB. Set all three Cloudinary environment variables before uploading.
 
 The returned `url` can be:
 
